@@ -1,0 +1,114 @@
+#!/bin/bash
+
+show_help() {
+    echo "$(tput bold)Usage:$(tput sgr0) $(basename "$(realpath "${BASH_SOURCE[0]}")") -h | package..."
+    echo "print all packages which are required as dependency by  ${SERVICE}:${TAG} excluding the arguments and their dependency, by recursively parsing dependency tree"
+    echo $(tput bold)Arguments:$(tput sgr0)
+    echo $'\t'" Names of all packages or containers of which subdependancy not to be checked"
+    echo $(tput bold)Options:$(tput sgr0)
+    echo $'\t'"-h|--help"$'\t'"print this help and exit"
+}
+
+DO_IMAGE=
+DO_RECURSE=1
+args=()
+DEPTH=
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --image)
+            DO_IMAGE=1
+            ;;
+        --imageonly)
+            DO_IMAGE=1
+            DEPTH=1
+            ;;
+        --depth)
+            DEPTH=$(( 0 + ${2} ))
+            shift 1
+            ;;
+        --recurse)
+            DEPTH=
+            ;;
+        -h|--help)
+            show_help
+            exit
+            ;;
+        *)
+            args+=("$1")
+            ;;
+    esac
+    shift 1
+done
+
+
+existing=" ${args[@]} "
+new=()
+deps=()
+
+if [[ ! -z "${DEPENDS}" ]]; then
+    for item in ${DEPENDS}; do
+	if [[ "${existing}" != *" ${item} "* ]]; then
+	    deps+=($item)
+	fi
+    done
+fi
+
+if [[ (-z "${DEPTH}") || (${DEPTH} -gt 1) ]]; then
+    if [[ ! -z "${PACKAGES}" ]]; then
+        for item in ${PACKAGES}; do
+	    if [[ "${existing}" != *" ${item} "* ]]; then
+	        new+=($item)
+	    fi
+        done
+    fi
+
+    if [[ ! -z "${CONTAINERS}" ]]; then
+        for item in ${CONTAINERS}; do
+	    if [[ "${existing}" != *" ${item} "* ]]; then
+	        new+=($item)
+	    fi
+        done
+    fi
+
+    existing=" ${existing%\ } ${new[@]}"
+    children=()
+    args=()
+    if [[ -z "${DEPTH}" ]]; then
+        args+=(--recurse)
+    else
+        args+=(--depth $(( ${DEPTH} - 1 )))
+    fi
+    for index in ${!new[*]}; do
+        tag=${new[${index}]}
+        # recursive call to find dependancy
+        found="$("${SCRIPT_PATH}" "${tag}" $(basename $0) $existing "${args[@]}")"
+        for item in ${found}; do
+	    if [[ "${existing}" != *" ${item} "* ]]; then
+	        children+=($item)
+	        existing="${existing%\ } ${item}"
+	    fi
+        done
+    done
+    new=("${children[@]}" "${new[@]}")
+fi
+
+
+# got all packages and containers depend on this.
+# if asked for images we output images
+
+if [[ -z "${DO_IMAGE}" ]]; then
+    echo "${new[@]}"
+else
+    existing=" ${deps[@]} "
+    for index in ${!new[*]}; do
+        tag=${new[${index}]}
+        # recursive call to find dependancy
+        found="$("${SCRIPT_PATH}" "${tag}" $(basename $0) --imageonly)"
+        for item in ${found}; do
+	    if [[ "${existing}" != *"${item}"* ]]; then
+	        existing="${existing%\ } ${item}"
+	    fi
+        done
+    done
+    echo $existing
+fi

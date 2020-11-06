@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# This script creates a volume to be shared in between containers
+# usually for a /run directory which do not need persistent storage
+# and needed to share content between containers.
+
+
+show_help() {
+    echo "$(tput bold)Usage:$(tput sgr0) $(basename "$(realpath "${BASH_SOURCE[0]}")") [-h] command"
+    echo "starts or stops sharevolume for package"
+    echo $(tput bold)Commands:$(tput sgr0)
+    echo $'\t'"$(tput bold)start$(tput sgr0)"$'\t'"creates data volume"
+    echo $'\t'"$(tput bold)stop$(tput sgr0)"$'\t'"removes data volume"
+    echo $(tput bold)Options:$(tput sgr0)
+    echo $'\t'"-h|--help"$'\t'"print this help and exit"
+}
+
+for opt in "$@"; do
+    case $opt in
+	-h|--help)
+	    show_help
+	    exit
+	    ;;
+    esac
+done
+
+if [[ -z ${NAME} ]]; then
+    if [[ -z ${SERVICE} ]]; then
+	echo "${0} should be used with docker script" >&2
+    else
+	echo "${SERVICE} do not have volumes enabled"
+    fi
+    exit
+fi
+
+RUNDIR=${NAME}"-run"
+
+case "$1" in
+    "start")
+	if [ "$(docker volume ls -f "name=${RUNDIR}" -q)" == "" ]; then
+	    docker volume create ${RUNDIR}
+	fi
+	;;
+    
+    "stop")
+	if [ "$(docker volume ls -f "name=${RUNDIR}" -q)" == "${RUNDIR}" ]; then
+	    docker volume rm ${RUNDIR}
+	fi
+	;;
+    
+    *)
+	show_help
+	;;
+esac

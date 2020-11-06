@@ -1,0 +1,31 @@
+#!/bin/bash
+
+quiet=false
+
+show_help() {
+    echo "$(tput bold)Usage:$(tput sgr0) $(basename "$(realpath "${BASH_SOURCE[0]}")") [-hq]"
+    echo "Checks weather a container exists"
+    echo $(tput bold)Options:$(tput sgr0)
+    echo $'\t'"-q|--quiet"$'\t'"do not print anything"
+    echo $'\t'"-h|--help"$'\t'"print this help and exit"
+}
+
+for opt in "$@"; do
+    case $opt in
+	-h|--help)
+	    show_help
+	    exit
+	    ;;
+	-q|--quiet)
+	    quiet=true
+	    ;;
+    esac
+done
+
+docker image inspect "${SERVICE}:${TAG}" >/dev/null 2>&1
+
+ret=$?
+
+$quiet || ( [[ $ret -ne 0 ]] && echo "${SERVICE}:${TAG} not exists" || echo "${SERVICE}:${TAG} exists" )
+
+exit $ret

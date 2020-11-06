@@ -1,0 +1,98 @@
+#!/bin/bash
+
+show_help() {
+    echo "$(tput bold)Usage:$(tput sgr0) $(basename "$(realpath "${BASH_SOURCE[0]}")") [option]"
+    echo $(tput bold)Options:$(tput sgr0)
+    echo $'\t'"-f|--force"$'\t'"force rebuilding if exists"
+    echo $'\t'"--no-recurse"$'\t'"do not build child"
+    echo $'\t'"--recurse"$'\t'"build children recursively"
+    echo $'\t'"--depth"$'\t'"test upto this depth for building children"
+    echo $'\t'"-h|--help"$'\t'"print this help and exit"
+}
+
+
+function docker_build() {
+    # run pre build script
+    prebuildscript="${DIR}/prebuild.sh"
+    if [[ (-f "${prebuildscript}") && (-x "${prebuildscript}") ]]; then
+        ${prebuildscript} || exit $?
+    fi
+    # make build_arg
+    args=()
+    for line in $(env | grep -e '^INSTALL_ARG_'); do
+        arg=${line#INSTALL_ARG_}
+        args+=(--build-arg "${arg}")
+    done
+    DOCKER_BUILDKIT=1 docker build "${args[@]}" -t "${SERVICE}:${TAG}" "${DIR}"
+    postbuildscript="${DIR}/postbuild.sh"
+    if [[ (-f ${postbuildscript}) && (-x "${postbuildscript}") ]]; then
+        ${postbuildscript}
+    fi
+}
+
+
+DO_RECURSE=1
+DEPTH=
+args=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -f|--force)
+	    FORCE_BUILD_IMAGE=true
+            ;;
+        -h|--help)
+            show_help
+            exit
+            ;;
+        --no-recurse)
+            DO_RECURSE=0
+            DEPTH=1
+            ;;
+        --recurse)
+            DEPTH=
+            ;;
+        --depth)
+            DEPTH=$(( 0 + ${2} ))
+            shift 1
+            ;;
+        *)
+            args+=("$1")
+            ;;
+    esac
+    shift 1
+done
+set -- "${args[@]}"
+
+args=()
+if [[ -z "${DEPTH}" ]]; then
+    args+=(--recurse)
+else
+    args+=(--depth ${DEPTH})
+fi
+
+if [[ -z "${FORCE_BUILD_IMAGE}" ]]; then
+    if [[ (-z "${DEPTH}") || ("${DEPTH}" -gt 1) ]]; then
+    # if [[ "${DO_RECURSE:-0}" == "1" ]]; then
+        for image in $(dependancy_map --image "${args[@]}"); do
+            docker image inspect "${image}" >/dev/null 2>&1 || docker pull $image || exit 2
+        done
+        for image in $(dependancy_map "${args[@]}"); do
+            docker image inspect "${image}" >/dev/null 2>&1 || "${SCRIPT_PATH}" ${image} build_image --no-recurse || exit $?
+        done
+    fi
+    if [[ "${SERVICE_TYPE}" == "container" ]]; then
+        docker image inspect "${SERVICE}:${TAG}" >/dev/null 2>&1 || docker_build || exit $?
+    fi
+else
+    if [[ (-z "${DEPTH}") || ("${DEPTH}" -gt 1) ]]; then
+    # if [[ "${DO_RECURSE:-0}" == "1" ]]; then
+        for image in $(dependancy_map --image "${args[@]}"); do
+            docker pull $image || exit 2
+        done
+        for image in $(dependancy_map "${args[@]}"); do
+            "${SCRIPT_PATH}" ${image} build_image --force --no-recurse || exit $?
+        done
+    fi
+    if [[ "${SERVICE_TYPE}" == "container" ]]; then
+        docker_build || exit $?
+    fi
+fi

@@ -1,0 +1,11 @@
+#!/bin/bash
+
+#
+# include all completion scripts
+# installed by cloudscript installer
+#
+for x in ~/.local/bash_completions/*; do
+    if [[ -f "${x}" && "${x}" != *"~" ]]; then
+	source "${x}"
+    fi
+done

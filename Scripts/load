@@ -1,0 +1,152 @@
+#!/bin/bash
+
+load_help () {
+    echo "Usage: $1 $2 [command [args ...]]"
+    echo "Commands"
+    
+    oldifs=${IFS}
+    IFS=:
+    commands=$(/usr/bin/uniq <(/usr/bin/find ${path1:-"${SCRIPT_DIR}/function"} -maxdepth 1 -executable -type f -printf '%f\n' | /usr/bin/sort))
+    IFS=${oldifs}
+    for file in ${commands}; do
+	echo $'\t'"${file}"
+    done
+}
+
+export SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
+export SCRIPT_DIR="$(dirname "${SCRIPT_PATH}")"
+export APPLICATION_DIR="$(dirname "${SCRIPT_DIR}")"
+export CONTAINER_PATH="${APPLICATION_DIR}/Containers";
+export PACKAGE_PATH="${APPLICATION_DIR}/Packages";
+
+TAG="$1"
+
+SERVICE=${TAG%%:*}
+TAG=${TAG##"${SERVICE}"}
+TAG=${TAG##:}
+
+if [[ "${TAG}" == "" ]]; then
+    TAG=latest
+fi
+
+if [ "${SERVICE}" == "" ];then
+    PATH="/"
+    load_help $0 "SERVICE_NAME"
+    exit
+fi
+
+
+SHIFT_ARG=1
+SERVICE_DIR="${PACKAGE_PATH}/${SERVICE}/${TAG}"
+SERVICE_TYPE=package
+
+if [[ ! -d "${SERVICE_DIR}" ]]; then
+    SERVICE_TYPE=container
+    SERVICE_DIR="${CONTAINER_PATH}/${SERVICE}/${TAG}"
+    if [[ (! -d "${SERVICE_DIR}") ]]; then
+        # Check current working directory is subdirectory of a package.
+        # realpath used because every path used relative to ${SCRIPT_PATH}
+        pwd="$(realpath "$(pwd)")"
+        if [[ "${pwd}" != "${pwd#${PACKAGE_PATH%/}}" ]]; then
+            part="${pwd#${PACKAGE_PATH%/}}"
+            part="${part#/}"
+            service="${part%%/*}"
+            if [[ "${part}" != "${part%%/*}" ]]; then
+                SERVICE="${part%%/*}"
+                TAG=${part#${service}/}
+                TAG=${TAG%%/*}
+                SERVICE_DIR="${PACKAGE_PATH}/${SERVICE}/${TAG}"
+                SERVICE_TYPE=package
+                SHIFT_ARG=0
+            fi
+        fi
+        if [[ ! -d "${SERVICE_DIR}" ]]; then
+	    echo "SERVICE : ${SERVICE}:${TAG} not found while checking for directory ${SERVICE_DIR}" >&2
+	    exit 1
+        fi
+    fi
+fi
+
+if [[ "${SERVICE_TYPE}" == "package" ]]; then
+    if [[ -d "${SERVICE_DIR}/Assets" ]]; then
+	export ASSET="${SERVICE_DIR}/Assets"
+    elif [[ -d "${APPLICATION_DIR}/Assets/${SERVICE}/${TAG}" ]]; then
+	export ASSET="${APPLICATION_DIR}/Assets/${SERVICE}/${TAG}"
+    fi
+    if [[ -d "${SERVICE_DIR}/Data" ]]; then
+	export DATA="${SERVICE_DIR}/Data"
+    elif [[ -d "${APPLICATION_DIR}/Data/${SERVICE}/${TAG}" ]]; then
+	export DATA="${APPLICATION_DIR}/Data/${SERVICE}/${TAG}"
+    fi
+fi
+
+export DIR="${SERVICE_DIR}"
+export SERVICE
+export TAG
+export SERVICE_DIR
+export SERVICE_TYPE
+
+if [[ -f "${DIR}/conf" ]]; then
+    _conf_file="${DIR}/conf"
+    #unset all configuration variable
+    source ${SCRIPT_DIR}/conf
+    # export all defined variables in the configuration file.
+    set -a
+    source ${_conf_file}
+    set +a
+else
+    echo "CONFIGURATION FILE not found for ${SERVICE}" >&2
+    exit 1;
+fi
+
+if [[ "${SHIFT_ARG}" == "1" ]]; then
+    shift 1
+fi
+
+# If an argument is set and it is the executable, remove argument and set executable.
+if [[ ! -z "${1}" ]]; then
+    # specifically asked for default executable.
+    if [[ "${1}" == '--' ]]; then
+        shift 1
+    else
+        case "${1}" in
+            dependancy_map|script_path)
+                _cmd_file=${SCRIPT_DIR}/function/${1}
+                PATH="${SCRIPT_DIR}/function:${PATH}" ${_cmd_file} "${@:2}"
+                exit $?
+                ;;
+            *)
+                path="$(PATH="${SCRIPT_DIR}/function:${PATH}" "${SCRIPT_DIR}/function/script_path")"
+                candidate="$(PATH="${SCRIPT_DIR}/function:${path}" /usr/bin/which "${1}")"
+                if [[ ! -z "${candidate}" ]]; then
+                    _cmd_file="${candidate}"
+                    shift 1
+                fi
+        esac
+    fi
+fi
+
+# If executable not found assume default executable.
+if [[ -z "${_cmd_file}" ]];then
+    command="$("${SCRIPT_DIR}/function/script_path" 1)"
+    if [[ ( ! -z "${command}" ) && ( -x "${command:0:-1}/default" ) ]];then
+        _cmd_file="${command:0:-1}/default"
+    else
+        # Executable command not found, show help and exit.
+        load_help $0 "${SERVICE}:${TAG}"
+        exit 1
+    fi
+fi
+
+# This script could be called recursively.
+# Storing PATH of first invocation of this script. 
+if [[ -z "${__OLD_PATH}" ]]; then
+    export __OLD_PATH="${PATH}"
+fi
+
+if [[ -z "${path}" ]]; then
+    path="$(PATH="${SCRIPT_DIR}/function:${PATH}" "${SCRIPT_DIR}/function/script_path")"
+fi
+
+PATH="${SCRIPT_DIR}/function:${path}${__OLD_PATH}"
+"${_cmd_file}" "$@"

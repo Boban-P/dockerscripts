@@ -1,0 +1,30 @@
+#!/bin/bash
+
+
+show_help() {
+    echo "$(tput bold)Usage:$(tput sgr0) $(basename "$(realpath "${BASH_SOURCE[0]}")") [-h]"
+    echo "print all script paths accessible for ${SERVICE}:${TAG}"
+    echo $(tput bold)Options:$(tput sgr0)
+    echo $'\t'"-h|--help"$'\t'"print this help and exit"
+}
+
+for opt in "$@"; do
+    case $opt in
+	-h|--help)
+	    show_help
+	    exit
+    esac
+done
+
+paths=""
+if [[ -d ${SERVICE_DIR}/bin ]]; then
+    paths="${SERVICE_DIR}/bin:"
+fi
+
+if [[ -z ${1} ]]; then
+    packages=$(dependancy_map)
+    for package in $packages; do
+	paths="${paths}$("${SCRIPT_PATH}" "${package}" $(basename ${0}) dont)"
+    done
+fi
+echo $paths

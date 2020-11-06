@@ -1,0 +1,196 @@
+#!/bin/bash
+
+#usage cmd container_name image [startupargs [-- dockerargs]] [-- command_args]
+# caller: script start -- docker -- command
+# ::::::: cmd x y other_start -- other_docker -- start -- docker -- command other_command
+# caller: script docker -- command
+# ::::::: cmd x y start -- other_docker -- docker -- command other_command
+# caller: script command
+# ::::::: cmd x y start -- other_docker -- command other_command
+
+if [[ ( -z "${NAME}" ) ]]; then
+    if [[ -z "${SERVICE}" ]]; then
+	echo "${0} should be used with docker script" >&2
+    else
+	echo "${SERVICE} do not have editor enabled ${DATA} -- ${NAME}"
+    fi
+    exit
+fi
+
+if [[ $# -lt 2 ]]; then
+    echo "invalid argument: usage " >&2
+    echo "cmd name image [startupargs [-- dockerargs]] [-- command args]" >&2
+    echo "cmd name image [dockerargs] [-- command args]" >&2
+    echo "cmd name image [command args]" >&2
+    exit
+fi
+
+firstCommand=$1
+secondCommand=$2
+shift
+shift
+
+
+# Allow env variables on commandline.
+startargs=()
+if [[ (! -z "${ENABLE_GUI}") && ("${ENABLE_GUI}" != "0") ]]; then
+    startargs+=(-e DISPLAY=${DISPLAY} --mount type=bind,source=/tmp/.X11-unix,target=/tmp/.X11-unix)
+fi
+dockerargs=()
+tmp1=()
+tmp2=()
+commandargs=("")
+while [[ $# -gt 0 ]]; do
+    key=$1
+    case "${key}" in
+	--)
+	    if [[ ${#tmp1[@]} -eq 0 ]]; then
+		tmp1=("${tmp2[@]}")
+	    else
+		startargs+=("${tmp1[@]:1}")
+		dockerargs+=("${tmp2[@]:1}")
+		tmp1=()
+	    fi
+	    tmp2=("${commandargs[@]}")
+	    commandargs=("")
+	    ;;
+	*)
+	    commandargs+=("${key}")
+ 	    ;;
+    esac
+    shift
+done
+
+if [[ ${#tmp1[@]} -eq 0 ]]; then
+    tmp1=("${tmp2[@]}")
+fi
+
+# Replace with command alias.
+# command alias
+command="${commandargs[1]}"
+commands=("${command}")
+oldifs="${IFS}"
+IFS=$'\n'
+for line in $(env | grep -e '^COMMAND_CONTAINER_ARG_'"${command}="); do
+    IFS="${oldifs}"
+    initargs=(${line#*=})
+done
+IFS=$'\n'
+for line in $(env | grep -e '^COMMAND_ALIAS_'"${command}="); do
+    # group arguments with quotes together
+    commands=()
+    IFS='"'
+    tmps=(${line#*=})
+    IFS="${oldifs}"
+    index=0;
+    for i in "${tmps[@]}"
+    do
+	(( index++ ))
+	if [[ $((${index} % 2)) -eq 0 ]]; then
+	    commands+=("$i");
+	else
+	    commands+=($i);
+	fi
+    done
+done
+IFS=$'\n'
+for line in $(env | grep -e '^COMMAND_CONTAINER_NAME_'"${command}="); do
+    IFS="${oldifs}"
+    container="${line#*=}"
+done
+IFS="${oldifs}"
+commandargs=("${commands[@]}" "${commandargs[@]:2}")
+
+# for services modify container name.
+if [[ ! -z "${container}" ]]; then
+    firstCommand="${container}-${firstCommand}"
+fi
+
+# start container if it not exists.
+# or execute the command in running container.
+if [[ -z "$(docker ps -f name=^${firstCommand}\$ -q)" ]]; then
+
+    # Custom mounting paths from Package configuration
+    args=()
+    for line in $(env | grep -e '^SITE_PATH_'); do
+	value=${line#*=}
+	args+=(--mount ${value})
+    done
+
+    # additional groups to be assigned to container user.
+    groups=()
+    for line in $(env | grep -e '^SYSTEM_GROUP_'); do
+	value=${line#*=}
+	groups+=(--group-add ${value})
+    done
+    
+    # start network and assign ip
+    if [[ ! -z ${NETWORK_NAME} ]]; then
+	PAD=$(( 2 ** $(( 32 - ${NETWORK_SUBNET#*/} )) ))
+	START_IP=${NETWORK_SUBNET%/*}
+	START_IP=${START_IP%.*}."$(( 1 + ${START_IP##*.} ))"
+	# IP = subnet_start + (n - 1) * pad + network_container_ip
+	# hence n = 1;
+	IP=${START_IP%.*}."$(( ${NETWORK_CONTAINER_IP} + ${START_IP##*.} ))"
+	if [ "$(docker network ls -f "name=${NETWORK_NAME}" -q)" == "" ]; then
+	    if [[ -z "${NETWORK_GATEWAY}" ]]; then
+		NETWORK_GATEWAY=${START_IP}
+	    fi
+	    docker network create ${NETWORK_NAME} --subnet ${NETWORK_SUBNET} --gateway ${NETWORK_GATEWAY}
+	fi
+	args+=(--network "${NETWORK_NAME}")
+	args+=(--ip ${IP})
+	
+
+	# add hostname entries
+	for line in $(env | grep -e '^HOST_'); do
+	    value=${line#HOST_}
+	    hostname=${value%=*}
+	    expression=${value#*=}
+	    hostpart=${expression%:*}
+	    ippart=${expression#*:}
+	    ip=${START_IP%.*}."$(( ${ippart}  + ${START_IP##*.} ))"
+	    args+=(--add-host "${hostname}:${ip}")
+	    if [[ ${hostpart} != ${expression} ]]; then
+		if [[ ${hostpart} != ${hostname} ]]; then
+		    args+=(--add-host "${hostpart}:${ip}")
+		fi
+	    fi
+	done
+    fi
+
+    for line in $(env | grep -e '^PORT_'); do
+	value=${line#PORT_}
+	from=${value%=*}
+	to=${value#*=}
+	if [[ ! ( (-z "${from}") ||  (-z "${to}") ) && ( "${from}" != "${value}" ) ]]; then
+            from="${from/_/-}"
+	    args+=(-p "${from}:${to}")
+	fi
+    done
+
+    DOCKER_OPTIONS=()
+    # Get generic docker options.
+    oldifs="${IFS}"
+    IFS=$'\n'
+    for line in $(env | grep -e '^DOCKER_OPTION_'); do
+        IFS="${oldifs}"
+	value=${line#DOCKER_OPTION_}
+	DOCKER_OPTIONS+=("${value#*=}")
+    done
+    IFS="${oldifs}"
+
+
+    docker run --rm \
+	   --name="${firstCommand}" \
+	   "${startargs[@]}" "${tmp1[@]:1}" "${initargs[@]}"\
+	   "${args[@]}" \
+	   "${groups[@]}" \
+	   "${DOCKER_OPTIONS[@]}" \
+	   "${secondCommand}" \
+	   "${commandargs[@]}"
+elif [[ ${#commandargs[@]} -eq 0 ]]; then
+    echo "container already running" >&2
+else
+    docker exec "${dockerargs[@]}" "${tmp2[@]:1}" "${initargs[@]}" ${firstCommand} "${commandargs[@]}"
+fi
