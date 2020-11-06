@@ -1,0 +1,5 @@
+#!/bin/bash
+
+sql='CREATE USER `'$1'`@`'$2'` IDENTIFIED BY '"'$3';"
+
+mysql <<<${sql}

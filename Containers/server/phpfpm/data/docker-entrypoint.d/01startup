@@ -1,0 +1,24 @@
+#!/bin/bash
+
+
+#this directory required for php to store pid file.
+mkdir /run/php
+
+# make fpm process to listen on defined port.
+sed -i -e "s@^listen = .*@listen = ${FPM_LISTEN_PORT}@" \
+    -e 's/user = www-data/user = 1000/' \
+    -e 's/group = www-data/group = 1000/' \
+    /etc/php/${PHP_VERSION}/fpm/pool.d/www.conf
+
+
+# change configurable server values.
+sed -i \
+    -e "s/^memory_limit = .*/memory_limit = ${MEMMORY_LIMIT}/" \
+    -e 's/file_uploads = .*/file_uploads = '${FILE_UPLOAD}'/' \
+    -e 's/allow_url_fopen = .*/allow_url_fopen = '${URL_FOPEN}'/' \
+    -e 's/max_execution_time = .*/max_execution_time = '${MAX_EXECUTION_TIME}'/' \
+    -e 's/upload_max_filesize = .*/upload_max_filesize = '${MAX_FILE_UPLOAD_SIZE}'/' \
+    -e 's/post_max_size = .*/post_max_size = '${MAX_POST_SIZE}'/' \
+    -e 's/max_input_vars = .*/max_input_vars = '${MAX_INPUT_VARS}'/' \
+    /etc/php/${PHP_VERSION}/fpm/php.ini
+

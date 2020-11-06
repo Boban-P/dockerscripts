@@ -1,0 +1,7 @@
+NAME=server-phpfpm
+
+DEPENDS=
+CONTAINERS=
+DATAS=
+ASSETS=
+PACKAGES=

@@ -1,0 +1,6 @@
+#!/bin/bash
+
+sql='CREATE DATABASE IF NOT EXISTS `'"$1"'`'
+
+mysql <<<${sql}
+
