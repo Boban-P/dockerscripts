@@ -9,8 +9,8 @@ echo "ServerName ${SITE_NAME}" >>/etc/apache2/apache2.conf
 modules=()
 for line in $(env | grep -e '^ENABLE_MODE_'); do
     data=${line#ENABLE_MODE_}
-    if [[ (! -z ${data#*=}) && (${data#*=} != "0") ]]; then
-        modules+=(${data%=*})
+    if [[ (-n ${data#*=}) && (${data#*=} != "0") ]]; then
+        modules+=("${data%=*}")
     fi
 done
 
@@ -20,7 +20,7 @@ fi
 
 if [[ "${ENABLE_MODE_balancer:-0}" != "0" ]]; then
     modules+=(proxy_balancer lbmethod_byrequests)
-    if [[ ( ! -z "${DOCUMENT_ROOT}" ) && ( ! -z "${PHP_BALANCER_URL}" ) ]]; then
+    if [[ ( -n "${DOCUMENT_ROOT}" ) && ( -n "${PHP_BALANCER_URL}" ) ]]; then
         modules+=(proxy_fcgi)
     else
         modules+=(proxy_http)
@@ -35,8 +35,8 @@ fi
 confs=()
 for line in $(env | grep -e '^ENABLE_CONF_'); do
     data=${line#ENABLE_CONF_}
-    if [[ (! -z ${data#*=}) && (${data#*=} != "0") ]]; then
-        confs+=(${data%=*})
+    if [[ (-n ${data#*=}) && (${data#*=} != "0") ]]; then
+        confs+=("${data%=*}")
     fi
 done
 
@@ -50,7 +50,7 @@ fi
 BALANCER=""
 if [[ "${ENABLE_MODE_balancer:0}" == "1" ]]; then
 
-    if [[ ( ! -z "${DOCUMENT_ROOT}" ) && ( ! -z "${PHP_BALANCER_URL}" )]]; then
+    if [[ ( -n "${DOCUMENT_ROOT}" ) && ( -n "${PHP_BALANCER_URL}" )]]; then
         BALANCER="
      <Proxy \"balancer://phpcluster\">
 #PHPBALANCER                     BalancerMember \"fcgi://BALANCER_URL\"
@@ -73,7 +73,7 @@ if [[ "${ENABLE_MODE_balancer:0}" == "1" ]]; then
     fi
 fi
 
-if [[ ! -z "${DOCUMENT_ROOT}" ]]; then
+if [[ -n "${DOCUMENT_ROOT}" ]]; then
     DOCUMENT_ROOT="
     DocumentRoot \"${DOCUMENT_ROOT}\"
     <Directory \"${DOCUMENT_ROOT}\">
@@ -84,7 +84,7 @@ if [[ ! -z "${DOCUMENT_ROOT}" ]]; then
 "
 fi
 
-if [[ ! -z "${SITE_ALIAS}" ]]; then
+if [[ -n "${SITE_ALIAS}" ]]; then
     SITE_ALIAS="ServerAlias ${SITE_ALIAS}"
 fi
 
@@ -113,8 +113,8 @@ ${VHOST_CONF}
 if [[ "${SSL_ON:-0}" != "0" ]]; then
     if [[ ! -d /etc/apache2/ssl ]]; then
         mkdir -p /etc/apache2/ssl
-        cp /etc/ssl/certs/ssl-cert-snakeoil.pem /etc/apache2/ssl/${SITE_NAME}.pem
-        cp /etc/ssl/private/ssl-cert-snakeoil.key /etc/apache2/ssl/${SITE_NAME}.key
+        cp /etc/ssl/certs/ssl-cert-snakeoil.pem /etc/apache2/ssl/"${SITE_NAME}.pem"
+        cp /etc/ssl/private/ssl-cert-snakeoil.key /etc/apache2/ssl/"${SITE_NAME}.key"
     fi
     
     if [[ "${SSL_ONLY:-0}" != "0" ]]; then
@@ -146,14 +146,14 @@ fi
 
 
 # Add php balancer node
-if [[ ! -z "${PHP_BALANCER_URL}" ]];then
-    hostfile=$(sed 's%#PHPBALANCER\(.*\)\(BalancerMember "fcgi://\)\(BALANCER_URL\)\(.*\)%\1\2'${PHP_BALANCER_URL}'\4\n#PHPBALANCER\1\2\3\4%' <<< ${hostfile})
+if [[ -n "${PHP_BALANCER_URL}" ]];then
+    hostfile=$(sed 's%#PHPBALANCER\(.*\)\(BalancerMember "fcgi://\)\(BALANCER_URL\)\(.*\)%\1\2'"${PHP_BALANCER_URL}"'\4\n#PHPBALANCER\1\2\3\4%' <<< "${hostfile}")
 fi
 
-if [[ ! -z "${CHILD_BALANCER_URL}" ]]; then
-    hostfile=$(sed 's%#CHILDBALANCER\(.*\)\(BalancerMember "http://\)\(BALANCER_URL\)\(.*\)%\1\2'${CHILD_BALANCER_URL}'\4\n#CHILDBALANCER\1\2\3\4%' <<< ${hostfile})
+if [[ -n "${CHILD_BALANCER_URL}" ]]; then
+    hostfile=$(sed 's%#CHILDBALANCER\(.*\)\(BalancerMember "http://\)\(BALANCER_URL\)\(.*\)%\1\2'"${CHILD_BALANCER_URL}"'\4\n#CHILDBALANCER\1\2\3\4%' <<< "${hostfile}")
 fi
 
-cat <<< ${hostfile} >/etc/apache2/sites-enabled/default.conf
+cat <<< "${hostfile}" >/etc/apache2/sites-enabled/default.conf
 
 exec "$@"

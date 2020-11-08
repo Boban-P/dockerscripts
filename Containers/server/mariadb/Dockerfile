@@ -1,4 +1,4 @@
-FROM server:mariadb
+FROM debian:stable
 
 MAINTAINER Boban Pulinchery <boban@ecodiver.in>
 
@@ -9,8 +9,8 @@ RUN apt-get update && \
                    mariadb-server-${SERVER_VERSION} \
                    procps \
     && rm -rf /var/lib/apt/lists/* \
-    && sed -i 's/^\(bind-address[ ]*\).*/\1= 0.0.0.0/' /etc/mysql/mariadb.conf.d/50-server.cnf \
-    && echo SERVER_VERSION=${SERVER_VERSION} >/serverversion
+    && sed -i 's/^\(bind-address[ ]*\).*/\1= 0.0.0.0/' /etc/mysql/mariadb.conf.d/50-server.cnf 
+
 
 
 # when extending update these values.

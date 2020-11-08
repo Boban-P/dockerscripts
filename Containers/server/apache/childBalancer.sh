@@ -14,5 +14,3 @@ case "$1" in
         /etc/init.d/apache2 reload
     ;;
 esac
-
-

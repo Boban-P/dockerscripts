@@ -1,4 +1,4 @@
-FROM server:dnsmasq
+FROM debian:stable
 
 MAINTAINER Boban Pulinchery <boban@ecodiver.in>
 
@@ -26,15 +26,16 @@ RUN apt-get update && \
 # HOST_ALLOWED: allowed hosts to query /host[/host...]
 # HOST_MAP: static host to ip map "ipaddress=hostname ipaddress2=hostname2"
 # LOGFILE: file to log queries.
+# SERVER_PORT: port at which dnsmasq listen.
 
 ENV SERVER=8.8.8.8 \
     HOST_ALLOWED="/google.com/amazon.in" \
     HOST_MAP="127.0.0.1=myhost 127.0.0.1=myhost2" \
     LOGFILE=/var/log/dnsmasq.log
 
+
 COPY startup.sh dnsmasq.conf  /
 
 ENTRYPOINT ["/startup.sh"]
 
 CMD ["dnsmasq" , "--no-daemon", "--no-resolv"]
-

@@ -3,24 +3,24 @@
 SERVER_CONF_FILE=/etc/mysql/mariadb.conf.d/50-server.cnf
 echo "port = ${SERVER_PORT}" >>/etc/mysql/mariadb.conf.d/50-mysqld_safe.cnf
 
-mkdir -p ${BACKUP_SQL_DIR}
+mkdir -p "${BACKUP_SQL_DIR}"
 
 #handle replication.
 #replication enabled.
-if [[ (! -z "${REPLICATION_SERVER_ID}") && (${REPLICATION_SERVER_ID} != "0") ]]; then
+if [[ (-n "${REPLICATION_SERVER_ID}") && (${REPLICATION_SERVER_ID} != "0") ]]; then
     databases=()
     for line in $(env | grep -e '^REPLICATION_DB_'); do
         data=${line#REPLICATION_DB_}
         db_name=${data%=*}
         if [[ "${data#*=}" == "0" ]]; then
-            sed -i 's/#\(binlog_ignore_db *=\)\(.*\)/\1 '${db_name}'\n#\1\2/' ${SERVER_CONF_FILE}
+            sed -i 's/#\(binlog_ignore_db *=\)\(.*\)/\1 '"${db_name}"'\n#\1\2/' ${SERVER_CONF_FILE}
         else
-            sed -i 's/#\(binlog_do_db *=\)\(.*\)/\1 '${db_name}'\n#\1\2/' ${SERVER_CONF_FILE}
+            sed -i 's/#\(binlog_do_db *=\)\(.*\)/\1 '"${db_name}"'\n#\1\2/' ${SERVER_CONF_FILE}
         fi
-        databases+=($db_name)
+        databases+=("${db_name}")
     done
     # set replication server id;
-    sed -i 's/#*\(server-id *=\).*$/\1 '${REPLICATION_SERVER_ID}'/' ${SERVER_CONF_FILE}
+    sed -i 's/#*\(server-id *=\).*$/\1 '"${REPLICATION_SERVER_ID}"'/' ${SERVER_CONF_FILE}
     sed -i 's%#*\(log_bin *=\).*$%\1 "'"${REPLICATION_BIN_LOG_FILE}"'"%' ${SERVER_CONF_FILE}
     
     if [[ "${REPLICATION_SERVER_ID}" == "1" ]]; then
@@ -42,12 +42,12 @@ if [[ (! -z "${REPLICATION_SERVER_ID}") && (${REPLICATION_SERVER_ID} != "0") ]];
 
             function make_backup() {
                 echo "FLUSH TABLES WITH READ LOCK;"
-                mysqldump --master-data --databases "${databases[@]}" >${BACKUP_SQL_DIR}/master.sql
+                mysqldump --master-data --databases "${databases[@]}" >"${BACKUP_SQL_DIR}/master.sql"
                 # Store server status so clients can use them.
                 echo "SHOW MASTER STATUS\G" | mysql >/dev/shm/master_status.txt
-                lines=$(cat /dev/shm/master_status.txt | wc -l)
+                lines=$(wc -l /dev/shm/master_status.txt | cut -d\  -f1)
                 (( lines-- ))
-                tail -n $lines /dev/shm/master_status.txt | sed 's/^ *//' >${BACKUP_SQL_DIR}/master_status;
+                tail -n "${lines}" /dev/shm/master_status.txt | sed 's/^ *//' >"${BACKUP_SQL_DIR}/master_status";
                 rm /dev/shm/master_status.txt
             
                 echo "UNLOCK TABLES;"
@@ -67,7 +67,7 @@ if [[ (! -z "${REPLICATION_SERVER_ID}") && (${REPLICATION_SERVER_ID} != "0") ]];
         
         startup=$(echo "SHOW SLAVE STATUS" | mysql | wc -l)
         if [[ "${startup}" == 0 ]]; then
-            mysql < ${BACKUP_SQL_DIR}/master.sql
+            mysql < "${BACKUP_SQL_DIR}/master.sql"
             while read -r line; do
                 name=${line%:*}
                 value=${line#*: }
@@ -79,7 +79,7 @@ if [[ (! -z "${REPLICATION_SERVER_ID}") && (${REPLICATION_SERVER_ID} != "0") ]];
                         logPosition=${value}
                         ;;
                 esac
-            done <${BACKUP_SQL_DIR}/master_status
+            done <"${BACKUP_SQL_DIR}/master_status"
             echo "CHANGE MASTER TO MASTER_HOST='${MASTER_SERVER}', MASTER_PORT='${MASTER_PORT}'" \
                  "MASTER_USER='${REPLICATION_USER}', MASTER_PASSWORD='${REPLICATION_PASSWORD}', " \
                  "MASTER_LOG_FILE='${binFile}', MASTER_LOG_POS=${logPosition}" \

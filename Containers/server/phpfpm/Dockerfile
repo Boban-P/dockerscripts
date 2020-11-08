@@ -22,9 +22,12 @@ RUN apt-get update && \
 	           php${PHP_VERSION}-zip \
 	           php${PHP_VERSION}-intl \
 	           php${PHP_VERSION}-imagick \
+                   msmtp \
                    procps \
     && (ln -s /usr/sbin/php-fpm${PHP_VERSION} /usr/sbin/php-fpm || true) \
     && rm -rf /var/lib/apt/lists/*
+
+RUN echo "PHP_VERSION=${PHP_VERSION}" >>/phpversion.conf
 
 
 # default values; see:startup.sh
@@ -38,6 +41,11 @@ ENV FILE_UPLOAD=On \
     MAX_POST_SIZE=400M \
     MAX_INPUT_VARS=1500 \
     FPM_LISTEN_PORT=80
+#    MAIL_FORWARD_HOST=smtp.google.com \
+#    MAIL_PASSWORD= \
+#    MAIL_USER= \
+#    FROM_MAIL_ADDRESS=no-replay@example.com \
+#    DNS_SERVER=127.0.0.1
 
 COPY data /
 

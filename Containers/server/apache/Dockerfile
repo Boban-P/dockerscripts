@@ -42,4 +42,3 @@ COPY startup.sh phpBalancer.sh childBalancer.sh /
 ENTRYPOINT ["/startup.sh"]
 
 CMD ["apachectl" , "-D", "FOREGROUND"]
-

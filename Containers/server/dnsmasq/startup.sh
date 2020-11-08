@@ -12,10 +12,10 @@ if [[ ! -z ${HOST_MAP} ]]; then
     done
 fi
 
-cat /dnsmasq.conf | sed \
-                            -e "s@server=/sites/nsip@server=${HOST_ALLOWED}/${SERVER}@" \
-                            -e "s@address=/host/ip@""${address}"@ \
-                            -e "s@log-facility=/var/log/dnsmasq.log@log-facility=${LOGFILE}@" \
-                            >/etc/dnsmasq.conf
+sed -i \
+    -e "s@server=/sites/nsip@server=${HOST_ALLOWED}/${SERVER}@" \
+    -e "s@address=/host/ip@""${address}"@ \
+    -e "s@log-facility=/var/log/dnsmasq.log@log-facility=${LOGFILE}@" \
+    /etc/dnsmasq.conf
 
 exec "$@"
