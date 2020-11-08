@@ -5,7 +5,7 @@ quiet=false
 show_help() {
     echo "$(tput bold)Usage:$(tput sgr0) $(basename "$(realpath "${BASH_SOURCE[0]}")") [-hq]"
     echo "Checks weather a container exists"
-    echo $(tput bold)Options:$(tput sgr0)
+    echo "$(tput bold)Options:$(tput sgr0)"
     echo $'\t'"-q|--quiet"$'\t'"do not print anything"
     echo $'\t'"-h|--help"$'\t'"print this help and exit"
 }

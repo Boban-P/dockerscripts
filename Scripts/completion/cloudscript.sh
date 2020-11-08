@@ -1,18 +1,19 @@
 #!/bin/bash
 
 _cloudcompletion() {
-    local script="$(realpath "$(which cloudscript)")"
-    local cloud_dir="$(realpath "$(dirname "${script}")/../")"
+	local script, cloud_dir
+    script="$(realpath "$(which cloudscript)")"
+    cloud_dir="$(realpath "$(dirname "${script}")/../")"
     local dirs=("${cloud_dir}/Containers" "${cloud_dir}/Packages")
     local words=()
     local current=0
     
-    # Bash completion understand : as another argument
+    # Bash completion recognize ":" as another argument
     # need to join NAME:TAG
     local skip_third=false
     for index in ${!COMP_WORDS[*]}; do
 	if [[ ${index} -eq 2 && "${COMP_WORDS[2]}" == ":"* ]]; then
-	    words[$((${current}-1))]="${words[$(($current-1))]}${COMP_WORDS[2]}${COMP_WORDS[3]}"
+	    words[$((current-1))]="${words[$((current-1))]}${COMP_WORDS[2]}${COMP_WORDS[3]}"
 	    skip_third=true
 	elif [[ ${index} -ne 3 || ! ${skip_third} ]]; then
 	    words[current]="${COMP_WORDS[${index}]}"
@@ -41,7 +42,7 @@ _cloudcompletion() {
 		done
                 # if there is only one target, list versions
                 if [[ ${#COMPREPLY[@]} -eq 1 ]]; then
-                    dir="${COMPREPLY[@]}"
+                    dir="${COMPREPLY[*]}"
                     COMPREPLY=()
 		    for tag in $(cd "${last}" && ls -dD */ 2>/dev/null); do
                         # conf file is required
@@ -68,13 +69,11 @@ _cloudcompletion() {
 	    ;;
 	3)
 	    #command completion
-	    local tag=${words[1]}
-	    local path="$(cloudscript ${tag} script_path 2>/dev/null)${cloud_dir}/Scripts/function"
-	    oldifs=${IFS}
-	    IFS=:
-	    local data=($(/usr/bin/uniq <(/usr/bin/find $path -name "${words[2]}*" -maxdepth 1 -executable -type f -printf '%f\n' 2>/dev/null | /usr/bin/sort)))
-	    IFS=${oldifs}
-	    COMPREPLY=(${data[*]})
+	    local tag, path, data
+	    tag=${words[1]}
+		path="$(cloudscript "${tag}" script_path 2>/dev/null)${cloud_dir}/Scripts/function"
+		IFS=: read -r -a data="$(/usr/bin/uniq <(/usr/bin/find "${path}" -name "${words[2]}*" -maxdepth 1 -executable -type f -printf '%f\n' 2>/dev/null | /usr/bin/sort)))"
+	    COMPREPLY=("${data[@]}")
 	    ;;
     esac
 }

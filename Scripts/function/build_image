@@ -2,7 +2,7 @@
 
 show_help() {
     echo "$(tput bold)Usage:$(tput sgr0) $(basename "$(realpath "${BASH_SOURCE[0]}")") [option]"
-    echo $(tput bold)Options:$(tput sgr0)
+    echo "$(tput bold)Options:$(tput sgr0)"
     echo $'\t'"-f|--force"$'\t'"force rebuilding if exists"
     echo $'\t'"--no-recurse"$'\t'"do not build child"
     echo $'\t'"--recurse"$'\t'"build children recursively"
@@ -30,8 +30,6 @@ function docker_build() {
     fi
 }
 
-
-DO_RECURSE=1
 DEPTH=
 args=()
 while [[ $# -gt 0 ]]; do
@@ -44,7 +42,6 @@ while [[ $# -gt 0 ]]; do
             exit
             ;;
         --no-recurse)
-            DO_RECURSE=0
             DEPTH=1
             ;;
         --recurse)
@@ -66,17 +63,17 @@ args=()
 if [[ -z "${DEPTH}" ]]; then
     args+=(--recurse)
 else
-    args+=(--depth ${DEPTH})
+    args+=(--depth "${DEPTH}")
 fi
 
 if [[ -z "${FORCE_BUILD_IMAGE}" ]]; then
     if [[ (-z "${DEPTH}") || ("${DEPTH}" -gt 1) ]]; then
     # if [[ "${DO_RECURSE:-0}" == "1" ]]; then
         for image in $(dependancy_map --image "${args[@]}"); do
-            docker image inspect "${image}" >/dev/null 2>&1 || docker pull $image || exit 2
+            docker image inspect "${image}" >/dev/null 2>&1 || docker pull "$image" || exit 2
         done
         for image in $(dependancy_map "${args[@]}"); do
-            docker image inspect "${image}" >/dev/null 2>&1 || "${SCRIPT_PATH}" ${image} build_image --no-recurse || exit $?
+            docker image inspect "${image}" >/dev/null 2>&1 || "${SCRIPT_PATH}" "${image}" build_image --no-recurse || exit $?
         done
     fi
     if [[ "${SERVICE_TYPE}" == "container" ]]; then
@@ -86,10 +83,10 @@ else
     if [[ (-z "${DEPTH}") || ("${DEPTH}" -gt 1) ]]; then
     # if [[ "${DO_RECURSE:-0}" == "1" ]]; then
         for image in $(dependancy_map --image "${args[@]}"); do
-            docker pull $image || exit 2
+            docker pull "${image}" || exit 2
         done
         for image in $(dependancy_map "${args[@]}"); do
-            "${SCRIPT_PATH}" ${image} build_image --force --no-recurse || exit $?
+            "${SCRIPT_PATH}" "${image}" build_image --force --no-recurse || exit $?
         done
     fi
     if [[ "${SERVICE_TYPE}" == "container" ]]; then

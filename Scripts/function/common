@@ -1,33 +1,33 @@
-
+#!/bin/bash
 name_tag() {
-    basename ${1%:*}
+    basename "${1%:*}"
 }
 
 domain_tag() {
-    dirname ${1%:*}
+    dirname "${1%:*}"
 }
 
 tag_tag() {
     tag=${1##*:}
-    [[ "${tag}" == "${1}" || ${tag} == "" ]] && echo latest && return $?
-    echo $tag
+    [[ "${tag}" == "${1}" || "${tag}" == "" ]] && echo latest && return $?
+    echo "${tag}"
 }
 
 #pull all external
 external_build() {
     for _tag in "$@"; do
 	# Get everything before last ':' name[:tag]
-	name=$(name_tag ${_tag})
+	name=$(name_tag "${_tag}")
 	# Get everything after name from name[:tag]
-	tag=$(tag_tag ${_tag})
+	tag=$(tag_tag "${_tag}")
 	# url is everything before name  domain/path/to/dir/name
-	domain=$(domain_tag ${_tag})
+	domain=$(domain_tag "${_tag}")
 
 	if [[ "${domain}" == "docker.io"* ]]; then
 	    _tag="${domain}/${name}:${tag}"
 	    _tag=${_tag##docker.io/}
 	fi
-	( ${FORCE_BUILD_IMAGE:-false} || ! docker image inspect ${_tag} >/dev/null 2>&1 ) && { docker pull ${_tag} || return 1; }
+	( ${FORCE_BUILD_IMAGE:-false} || ! docker image inspect "${_tag}" >/dev/null 2>&1 ) && { docker pull "${_tag}" || return 1; }
 	return 0
     done
 }

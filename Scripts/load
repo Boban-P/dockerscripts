@@ -4,11 +4,8 @@ load_help () {
     echo "Usage: $1 $2 [command [args ...]]"
     echo "Commands"
     
-    oldifs=${IFS}
-    IFS=:
-    commands=$(/usr/bin/uniq <(/usr/bin/find ${path1:-"${SCRIPT_DIR}/function"} -maxdepth 1 -executable -type f -printf '%f\n' | /usr/bin/sort))
-    IFS=${oldifs}
-    for file in ${commands}; do
+    IFS=: read -r -a commands <<< "$(/usr/bin/uniq <(/usr/bin/find "${path1:-"${SCRIPT_DIR}/function"}" -maxdepth 1 -executable -type f -printf '%f\n' | /usr/bin/sort))"
+    for file in "${commands[@]}"; do
 	echo $'\t'"${file}"
     done
 }
@@ -30,8 +27,7 @@ if [[ "${TAG}" == "" ]]; then
 fi
 
 if [ "${SERVICE}" == "" ];then
-    PATH="/"
-    load_help $0 "SERVICE_NAME"
+    PATH="/" load_help "${0}" "SERVICE_NAME"
     exit
 fi
 
@@ -89,10 +85,10 @@ export SERVICE_TYPE
 if [[ -f "${DIR}/conf" ]]; then
     _conf_file="${DIR}/conf"
     #unset all configuration variable
-    source ${SCRIPT_DIR}/conf
+    source "${SCRIPT_DIR}/conf"
     # export all defined variables in the configuration file.
     set -a
-    source ${_conf_file}
+    source "${_conf_file}"
     set +a
 else
     echo "CONFIGURATION FILE not found for ${SERVICE}" >&2
@@ -133,7 +129,7 @@ if [[ -z "${_cmd_file}" ]];then
         _cmd_file="${command:0:-1}/default"
     else
         # Executable command not found, show help and exit.
-        load_help $0 "${SERVICE}:${TAG}"
+        load_help "${0}" "${SERVICE}:${TAG}"
         exit 1
     fi
 fi

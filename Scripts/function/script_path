@@ -4,7 +4,7 @@
 show_help() {
     echo "$(tput bold)Usage:$(tput sgr0) $(basename "$(realpath "${BASH_SOURCE[0]}")") [-h]"
     echo "print all script paths accessible for ${SERVICE}:${TAG}"
-    echo $(tput bold)Options:$(tput sgr0)
+    echo "$(tput bold)Options:$(tput sgr0)"
     echo $'\t'"-h|--help"$'\t'"print this help and exit"
 }
 
@@ -24,7 +24,7 @@ fi
 if [[ -z ${1} ]]; then
     packages=$(dependancy_map)
     for package in $packages; do
-	paths="${paths}$("${SCRIPT_PATH}" "${package}" $(basename ${0}) dont)"
+	paths="${paths}$("${SCRIPT_PATH}" "${package}" "$(basename "${0}")" dont)"
     done
 fi
-echo $paths
+echo "${paths}"

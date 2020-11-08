@@ -4,10 +4,10 @@
 show_help() {
     echo "$(tput bold)Usage:$(tput sgr0) $(basename "$(realpath "${BASH_SOURCE[0]}")") [-h] command"
     echo "starts or stops networking"
-    echo $(tput bold)Commands:$(tput sgr0)
+    echo "$(tput bold)Commands:$(tput sgr0)"
     echo $'\t'"$(tput bold)start$(tput sgr0)"$'\t'"starts networking"
     echo $'\t'"$(tput bold)stop$(tput sgr0)"$'\t'"stops networking"
-    echo $(tput bold)Options:$(tput sgr0)
+    echo "$(tput bold)Options:$(tput sgr0)"
     echo $'\t'"-h|--help"$'\t'"print this help and exit"
 }
 
@@ -32,20 +32,18 @@ fi
 NETWORK=${NAME}"-net"
 GATEWAY=${SUBNET:0:-4}1
 
-
 case "$1" in
     "start")
 	if [ "$(docker network ls -f "name=${NETWORK}" -q)" == "" ]; then
-	    docker network create ${NETWORK} --subnet ${SUBNET} --gateway ${GATEWAY}
+	    docker network create "${NETWORK}" --subnet "${SUBNET}" --gateway "${GATEWAY}"
 	fi
 	;;
     "stop")
 	if [ "$(docker network ls -f "name=${NETWORK}" -q)" != "" ]; then
-	    docker network rm ${NETWORK}
+	    docker network rm "${NETWORK}"
 	fi
 	;;
     *)
 	show_help
 	;;
 esac
-

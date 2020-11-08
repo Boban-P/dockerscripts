@@ -8,10 +8,10 @@
 show_help() {
     echo "$(tput bold)Usage:$(tput sgr0) $(basename "$(realpath "${BASH_SOURCE[0]}")") [-h] command"
     echo "starts or stops sharevolume for package"
-    echo $(tput bold)Commands:$(tput sgr0)
+    echo "$(tput bold)Commands:$(tput sgr0)"
     echo $'\t'"$(tput bold)start$(tput sgr0)"$'\t'"creates data volume"
     echo $'\t'"$(tput bold)stop$(tput sgr0)"$'\t'"removes data volume"
-    echo $(tput bold)Options:$(tput sgr0)
+    echo "$(tput bold)Options:$(tput sgr0)"
     echo $'\t'"-h|--help"$'\t'"print this help and exit"
 }
 
@@ -38,13 +38,13 @@ RUNDIR=${NAME}"-run"
 case "$1" in
     "start")
 	if [ "$(docker volume ls -f "name=${RUNDIR}" -q)" == "" ]; then
-	    docker volume create ${RUNDIR}
+	    docker volume create "${RUNDIR}"
 	fi
 	;;
     
     "stop")
 	if [ "$(docker volume ls -f "name=${RUNDIR}" -q)" == "${RUNDIR}" ]; then
-	    docker volume rm ${RUNDIR}
+	    docker volume rm "${RUNDIR}"
 	fi
 	;;
     
