@@ -23,7 +23,7 @@ function docker_build() {
         arg=${line#INSTALL_ARG_}
         args+=(--build-arg "${arg}")
     done
-    DOCKER_BUILDKIT=1 docker build "${args[@]}" -t "${SERVICE}:${TAG}" "${DIR}"
+    DOCKER_BUILDKIT=1 docker build "${args[@]}" -t "${SERVICE}:${TAG}" "${DIR}" || exit $?
     postbuildscript="${DIR}/postbuild.sh"
     if [[ (-f ${postbuildscript}) && (-x "${postbuildscript}") ]]; then
         ${postbuildscript}

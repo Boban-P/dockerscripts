@@ -12,4 +12,4 @@ fi
 
 mkdir -p "${HOME}/.local/bash_completions"
 
-cp cloudscript.sh "${HOME}/.local/bash_completions"
+cp "${DIR}/cloudscript.sh" "${HOME}/.local/bash_completions"
