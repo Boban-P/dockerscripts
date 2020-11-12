@@ -2,6 +2,28 @@
 
 
 # Start/stop all services.
+ip=""
+args=()
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --ip)
+            ip=${2}
+            shift
+            shift
+            ;;
+        *)
+            args+=("$1")
+            shift
+            ;;
+    esac
+done
+
+set -- "${args[@]}"
+
+if [[ -z "${ip}" ]]; then
+    ip=172.17.0.1
+fi
+
 
 case "$1" in
     stop)
@@ -21,11 +43,11 @@ case "$1" in
         postfix stop
         ;;
     *)
-        postfix start 172.17.0.1:25
-        dnsmasq start 172.17.0.1:53
-        db start 172.17.0.1:3306
-        app start -d 172.17.0.1 -m 172.17.0.1 -n 172.17.0.1 172.17.0.1:
-        web start "$(app url 0)" 172.17.0.1:
-        balancer start "$(web url 0)" 172.17.0.1
+        postfix start ${ip}:25
+        dnsmasq start "${ip}":53
+        db start "${ip}":3306
+        app start -d "${ip}" -m "${ip}" -n "${ip}" "${ip}":
+        web start "$(app url 0)" "${ip}":
+        balancer start "$(web url 0)" "${ip}"
         ;;
 esac
