@@ -1,0 +1,110 @@
+#!/bin/bash
+
+# Web balancer
+# Usage: $0 start child-server-ip:port [port-forward-ip [http-port ssl-port]] | stop | childAdd ip:port
+#        child-server-ip : ip address or host name of child web server, additional
+#                        child servers can be added by childAdd command
+#        port-forward-ip: ip address of host system from which incomming traffic will be
+#                        forwarded to containers listening port.
+#                        if omitted all ips is used.
+
+start="$(dockerinfo startup_command "${BALANCER_IMAGE}")"
+exists=$(docker ps -f 'name=^'"${BALANCER_CONTAINER}"'$' -q)
+
+if [[ -z "${exists}" ]]; then
+    # get exposed port
+    if [[ -z "${BALANCER_LISTEN_PORT}" ]]; then
+        BALANCER_LISTEN_PORT=$(dockerinfo variable "${BALANCER_IMAGE}" LISTEN_PORT)
+    else
+        export DOCKER_OPTION_listen_port="-e=LISTEN_PORT=${BALANCER_LISTEN_PORT}"
+    fi
+
+
+    if [[ -n "$3" ]]; then
+        export DOCKER_OPTION_bind_port="--publish=${3}:${4:-80}:${BALANCER_LISTEN_PORT}"
+    fi
+
+    export DOCKER_OPTION_site_name="-e=SITE_NAME=${SITE_NAME}"
+    export DOCKER_OPTION_site_alias='-e=SITE_ALIAS='"${SITE_ALIAS}"
+
+    if [[ -n "${WEB_LOG_LEVEL}" ]]; then
+        export DOCKER_OPTION_site_log_level="-e=SITE_LOG_LEVEL=${BALANCER_LOG_LEVEL}"
+    fi
+
+    if [[ "${BALANCER_ENABLE_SSL:-0}" != "0" ]]; then
+        export DOCKER_OPTION_ssl_enable="-e=SSL_ON=1"
+        if [[ "${BALANCER_SSL_ONLY:-0}" != "0" ]]; then
+            export DOCKER_OPTION_ssl_only="-e=SSL_ONLY=1"
+        fi
+        if [[ -n "${BALANCER_CERTIFICATE_PATH}" ]]; then
+            if [[ ! -d "${BALANCER_CERTIFICATE_PATH}" ]]; then
+                mkdir -p "${BALANCER_CERTIFICATE_PATH}"
+            fi
+            export SITE_PATH_ssl_dir=type=bind,source=${BALANCER_CERTIFICATE_PATH},destination=/etc/apache2/ssl
+        fi
+
+        if [[ -z "${BALANCER_LISTEN_SSLPORT}" ]]; then
+            BALANCER_LISTEN_SSLPORT=$(dockerinfo variable "${BALANCER_IMAGE}" LISTEN_SSLPORT)
+        else
+            export DOCKER_OPTION_listen_sslport="-e=LISTEN_SSLPORT=${BALANCER_LISTEN_SSLPORT}"
+        fi
+
+        if [[ -n "$3" ]]; then
+            export DOCKER_OPTION_bind_sslport="--publish=${3}:${5:-443}:${BALANCER_LISTEN_SSLPORT}"
+        fi
+    fi
+    if [[ -n "${BALANCER_LOG_FILE}" ]]; then
+        export SITE_PATH_logfile="type=bind,source=${BALANCER_LOG_FILE},destination=/var/log/apache2/access.log"
+        if [[ ! -f "${BALANCER_LOG_FILE}" ]]; then
+            if [[ ! -d "$(dirname "${BALANCER_LOG_FILE}")" ]]; then
+                mkdir -p "$(dirname "${BALANCER_LOG_FILE}")"
+            fi
+            touch "${BALANCER_LOG_FILE}"
+        fi
+    fi
+    if [[ -n "${BALANCER_ERROR_LOG_FILE}" ]]; then
+        export SITE_PATH_logfile="type=bind,source=${BALANCER_ERROR_LOG_FILE},destination=/var/log/apache2/error.log"
+        if [[ ! -f "${BALANCER_ERROR_LOG_FILE}" ]]; then
+            if [[ ! -d "$(dirname "${BALANCER_ERROR_LOG_FILE}")" ]]; then
+                mkdir -p "$(dirname "${BALANCER_ERROR_LOG_FILE}")"
+            fi
+            touch "${BALANCER_ERROR_LOG_FILE}"
+        fi
+    fi
+fi
+
+case "$1" in
+    start)
+        # Check: container exists? abort. argument count 2
+        if [[ -z "${exists}" ]]; then
+            if [[ $# -lt 2 ]]; then
+                echo "CHILD web server url required"
+                exit
+            fi
+            cmd "${BALANCER_CONTAINER}" "${BALANCER_IMAGE}" -d -e ENABLE_MODE_balancer=1 -e CHILD_BALANCER_URL="${2}" --  -- "${start}"
+        fi
+        ;;
+    stop)
+        test -n "${exists}" && cmd "${BALANCER_CONTAINER}" "${BALANCER_IMAGE}" apache2ctl stop
+        ;;
+    childAdd)
+        if [[ $# -lt 2 ]]; then
+            echo "child web server url required"
+            exit;
+        fi
+        cmd "${BALANCER_CONTAINER}" "${BALANCER_IMAGE}" /childBalancer.sh add "${2}"
+        ;;
+    phpRemove)
+        if [[ $# -lt 2 ]]; then
+            echo "CHILD web server url required"
+            exit;
+        fi
+        cmd "${BALANCER_CONTAINER}" "${BALANCER_IMAGE}" /childBalancer.sh remove "${2}"
+        ;;
+    env)
+        env
+        ;;
+    *)
+        cmd "${BALANCER_CONTAINER}" "${BALANCER_IMAGE}" -ti -e ENABLE_MODE_balancer=1 -- -ti -- "$@"
+        ;;
+esac

@@ -33,6 +33,7 @@ done
 sed -i \
     -e "s/^from FROM_MAIL_ADDRESS$/from ${FROM_MAIL_ADDRESS}/" \
     -e "s/^host MAIL_FORWARD_HOST/host ${MAIL_FORWARD_HOST}/" \
+    -e "s/^port MAIL_FORWARD_PORT/port ${MAIL_FORWARD_PORT:-25}/" \
     -e "s/^user MAIL_USER/user ${MAIL_USER:-someuser}/" \
     -e "s/^password MAIL_PASSWORD/password ${MAIL_PASSWORD:-somepassword}/" \
     /etc/msmtp.conf

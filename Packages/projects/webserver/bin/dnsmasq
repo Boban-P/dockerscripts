@@ -1,0 +1,34 @@
+#!/bin/bash
+exists=$(docker ps -q -f 'name=^'"${DNS_CONTAINER}"'$')
+start="$(dockerinfo startup_command "${DNS_IMAGE}")"
+
+if [[ -z "${exists}" ]]; then
+    test -n "${DNS_SERVER}" && export DOCKER_OPTION_dns="-e=SERVER=${DNS_SERVER}"
+    test -n "${DNS_ALLOWED_HOSTS}" && export DOCKER_OPTION_host="-e=HOST_ALLOWED=${DNS_ALLOWED_HOSTS}"
+    if [[ -n "${DNS_LOG_FILE}" ]]; then
+        export SITE_PATH_logfile="type=bind,source=${DNS_LOG_FILE},destination=/var/log/dnsmasq.log"
+        if [[ ! -f "${DNS_LOG_FILE}" ]]; then
+            if [[ ! -d "$(dirname "${DNS_LOG_FILE}")" ]]; then
+                mkdir -p "$(dirname "${DNS_LOG_FILE}")"
+            fi
+            touch "${DNS_LOG_FILE}"
+        fi
+    fi
+    test -n "${DNS_HOST_MAP}" && export DOCKER_OPTION_map='-e=HOST_MAP="'"${DNS_HOST_MAP}"'"'
+fi
+
+case "${1}" in
+    "start")
+        if [[ -z "${exists}" ]]; then
+            test -n "${2}" && \
+                cmd "${DNS_CONTAINER}" "${DNS_IMAGE}" -d -p "${2}:53/udp" -- -- "${start}" \
+                    || cmd "${DNS_CONTAINER}" "${DNS_IMAGE}" -d -- -- "${start}"
+        fi
+        ;;
+    "stop")
+        test -n "${exists}" && docker stop "${DNS_CONTAINER}"
+        ;;
+    *)
+        cmd "${DNS_CONTAINER}" "${DNS_IMAGE}" -ti -- -ti -- "$@"
+        ;;
+esac

@@ -68,27 +68,25 @@ fi
 # Replace with command alias.
 # command alias
 command="${commandargs[1]}"
-commands=("${command}")
+read -r -a commands <<< "${command}"
 mapfile -t lines <<< "$(env | grep -e '^COMMAND_CONTAINER_ARG_'"${command}=")"
 for line in "${lines[@]}"; do
     read -r -a initargs <<< "${line#*=}"
 done
-IFS=$'\n'
 mapfile -t lines <<< "$(env | grep -e '^COMMAND_ALIAS_'"${command}=")"
 for line in "${lines[@]}"; do
     # group arguments with quotes together
-    commands=()
     IFS='"' read -r -a tmps <<< "${line#*=}"
     index=0;
     for i in "${tmps[@]}"
     do
-	(( index++ ))
-	if [[ $((index % 2)) -eq 0 ]]; then
-	    commands+=("$i");
-	else
-		read -r -a values <<< "$i"
-	    commands+=("${values[@]}");
-	fi
+		(( index++ ))
+		if [[ $((index % 2)) -eq 0 ]]; then
+			commands+=("$i");
+		else
+			read -r -a values <<< "$i"
+			commands+=("${values[@]}");
+		fi
     done
 done
 mapfile -t lines <<< "$(env | grep -e '^COMMAND_CONTAINER_NAME_'"${command}=")"
@@ -172,7 +170,6 @@ if [[ -z "$(docker ps -f name=^"${firstCommand}"\$ -q)" ]]; then
 	value=${line#DOCKER_OPTION_}
 	DOCKER_OPTIONS+=("${value#*=}")
     done
-
 
     docker run --rm \
 	   --name="${firstCommand}" \

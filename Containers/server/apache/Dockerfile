@@ -5,6 +5,7 @@ MAINTAINER Boban Pulinchery <boban@ecodiver.in>
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
                    apache2 \
+                   ssl-cert \
                    procps \
     && rm -rf /var/lib/apt/lists/*
 
@@ -31,6 +32,7 @@ ENV LISTEN_PORT=80 \
     ENABLE_MODE_balancer=0 \
     ENABLE_MODE_rewrite=1 \
     PHP_BALANCER_URL=127.0.0.1:5555 \
+    PHP_ENVIRONMENT="development" \
     CHILD_BALANCER_URL=127.0.0.1:8080 \
     DOCUMENT_ROOT= \
     SITE_LOG_LEVEL=warn \

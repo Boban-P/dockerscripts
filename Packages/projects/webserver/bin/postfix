@@ -1,0 +1,42 @@
+#!/bin/bash
+exists=$(docker ps -q -f 'name=^'"${MAIL_CONTAINER}"'$')
+start="$(dockerinfo startup_command "${MAIL_IMAGE}")"
+
+if [[ -z "${exists}" ]]; then
+    test -n "${MAIL_HOST_NAME}"     && export DOCKER_OPTION_mailhost="-e=HOST_NAME=${MAIL_HOST_NAME}"
+    test -n "${MAIL_DESTINATION}"   && export DOCKER_OPTION_maildest="-e=DESTINATION=${MAIL_DESTINATION}"
+    test -n "${MAIL_RELAY_DOMAINS}" && export DOCKER_OPTION_maildomain="-e=RELAY_DOMAINS=${MAIL_RELAY_DOMAINS}"
+    test -n "${MAIL_BANNER}"        && export DOCKER_OPTION_mailbanner="-e=BANNER=${MAIL_BANNER}"
+    test -n "${MAIL_RELAY}"         && export DOCKER_OPTION_mailrelay="-e=RELAY=${MAIL_RELAY}"
+    test -n "${MAIL_PORT}"          && export DOCKER_OPTION_mailport="-e=PORT=${MAIL_PORT}"
+    test -n "${MAIL_USER}"          && export DOCKER_OPTION_mailuser="-e=USER=${MAIL_USER}"
+    test -n "${MAIL_PASSWORD}"      && export DOCKER_OPTION_mailpass="-e=PASSWORD=${MAIL_PASSWORD}"
+    if [[ -n "${MAIL_LOG_FILE}" ]]; then
+        export DOCKER_OPTION_maillogfile="-e=MAIL_LOG=/var/log/mail.log" 
+        export SITE_PATH_maillog="type=bind,source=${MAIL_LOG_FILE},destination=/var/log/mail.log"
+        if [[ ! -f "${MAIL_LOG_FILE}" ]]; then
+            if [[ ! -d "$(dirname "${MAIL_LOG_FILE}")" ]]; then
+                mkdir -p "$(dirname "${MAIL_LOG_FILE}")"
+            fi
+            touch "${MAIL_LOG_FILE}"
+        fi
+    fi
+fi
+
+case "${1}" in
+    "start")
+        if [[ -z "${exists}" ]]; then
+            
+            test -n "${2}" && \
+                cmd "${MAIL_CONTAINER}" "${MAIL_IMAGE}" -d -p "${2}:25" -- -- "${start}" \
+                    || cmd "${MAIL_CONTAINER}" "${MAIL_IMAGE}" -d -- -- "${start}"
+                    
+        fi
+        ;;
+    "stop")
+        test -n "${exists}" && docker stop "${MAIL_CONTAINER}"
+        ;;
+    *)
+        cmd "${MAIL_CONTAINER}" "${MAIL_IMAGE}" -ti -- -ti -- "$@"
+        ;;
+esac

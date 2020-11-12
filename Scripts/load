@@ -68,11 +68,15 @@ if [[ "${SERVICE_TYPE}" == "package" ]]; then
 	export ASSET="${SERVICE_DIR}/Assets"
     elif [[ -d "${APPLICATION_DIR}/Assets/${SERVICE}/${TAG}" ]]; then
 	export ASSET="${APPLICATION_DIR}/Assets/${SERVICE}/${TAG}"
+    else
+	export ASSET="${SERVICE_DIR}/Assets"
     fi
     if [[ -d "${SERVICE_DIR}/Data" ]]; then
 	export DATA="${SERVICE_DIR}/Data"
     elif [[ -d "${APPLICATION_DIR}/Data/${SERVICE}/${TAG}" ]]; then
 	export DATA="${APPLICATION_DIR}/Data/${SERVICE}/${TAG}"
+    else
+	export DATA="${SERVICE_DIR}/Data"
     fi
 fi
 

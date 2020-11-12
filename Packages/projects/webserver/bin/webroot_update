@@ -1,0 +1,27 @@
+#!/bin/bash
+
+root="${1:-"${WEB_ROOT}"}"
+repo="${2:-"${WEB_DOCUMENT_REPO}"}"
+branch=$(git rev-parse --abbrev-ref HEAD)
+target=dev
+# GET appropriate branch for webserver and database
+case "${branch}"  in
+    production)
+        target=production
+        ;;
+    working|dev)
+        target=dev
+        ;;
+    staging|testing)
+        target=staging
+        ;;
+    *)
+        target=dev
+        ;;
+esac
+
+if [[ -d "${root}/.git" ]]; then
+    test -n "${repo}" && git -C "${root}" pull origin "${target}" >/dev/null
+else
+    test -n "${repo}" && (git clone --depth 1 -b "${target}" "${repo}" "${root}" || rm -rf "${root}")
+fi

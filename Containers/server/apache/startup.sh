@@ -9,22 +9,25 @@ echo "ServerName ${SITE_NAME}" >>/etc/apache2/apache2.conf
 modules=()
 for line in $(env | grep -e '^ENABLE_MODE_'); do
     data=${line#ENABLE_MODE_}
+    name=${data%=*}
     if [[ (-n ${data#*=}) && (${data#*=} != "0") ]]; then
-        modules+=("${data%=*}")
+        case $name in
+            "balancer")
+                modules+=(proxy_balancer lbmethod_byrequests remoteip)
+                if [[ ( -n "${DOCUMENT_ROOT}" ) && ( -n "${PHP_BALANCER_URL}" ) ]]; then
+                    modules+=(proxy_fcgi)
+                else
+                    modules+=(proxy_http)
+                fi
+                ;;
+            *)
+                modules+=("$name")
+        esac
     fi
 done
 
 if [[ "${SSL_ON:-0}" != "0" ]]; then
     modules+=(ssl)
-fi
-
-if [[ "${ENABLE_MODE_balancer:-0}" != "0" ]]; then
-    modules+=(proxy_balancer lbmethod_byrequests)
-    if [[ ( -n "${DOCUMENT_ROOT}" ) && ( -n "${PHP_BALANCER_URL}" ) ]]; then
-        modules+=(proxy_fcgi)
-    else
-        modules+=(proxy_http)
-    fi
 fi
 
 if [[ ${#modules[@]} -gt 0 ]]; then
@@ -48,10 +51,16 @@ fi
 # IF document root is enabled and php backend exists
 # then php node balancer is enabled.
 BALANCER=""
-if [[ "${ENABLE_MODE_balancer:0}" == "1" ]]; then
+if [[ "${ENABLE_MODE_balancer:-0}" == "1" ]]; then
+    if [[ -n "${PHP_ENVIRONMENT}" ]]; then
+        envset='SetEnv ENVIRONMENT "'"${PHP_ENVIRONMENT}"'"'
+    else
+        envset=""
+    fi
 
     if [[ ( -n "${DOCUMENT_ROOT}" ) && ( -n "${PHP_BALANCER_URL}" )]]; then
         BALANCER="
+                 RemoteIPHeader X-Forwarded-For
      <Proxy \"balancer://phpcluster\">
 #PHPBALANCER                     BalancerMember \"fcgi://BALANCER_URL\"
      </Proxy>
@@ -59,11 +68,14 @@ if [[ "${ENABLE_MODE_balancer:0}" == "1" ]]; then
      # https://stackoverflow.com/a/41339419
      #ProxyPassMatch ^/(.*\.php)$ balancer://phpcluster${DOCUMENT_ROOT%/}/\$1
      <FilesMatch \.php$>
+                 ${envset}
+                 SetEnv HTTPS on
                  SetHandler \"proxy:balancer://phpcluster\"
      </FilesMatch>
 "
     else
         BALANCER="
+            RemoteIPHeader X-Client-IP
      <Proxy \"balancer://childcluster\">
 #CHILDBALANCER           BalancerMember \"http://BALANCER_URL\"
      </Proxy>
@@ -111,7 +123,7 @@ ${VHOST_CONF}
 "
 
 if [[ "${SSL_ON:-0}" != "0" ]]; then
-    if [[ ! -d /etc/apache2/ssl ]]; then
+    if [[ ! -f /etc/apache2/ssl/"${SITE_NAME}.key" ]]; then
         mkdir -p /etc/apache2/ssl
         cp /etc/ssl/certs/ssl-cert-snakeoil.pem /etc/apache2/ssl/"${SITE_NAME}.pem"
         cp /etc/ssl/private/ssl-cert-snakeoil.key /etc/apache2/ssl/"${SITE_NAME}.key"

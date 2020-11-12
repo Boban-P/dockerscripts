@@ -1,0 +1,94 @@
+NAME=project-webserver
+
+# Configuration directories used by the script
+# Config_path directives used by script to create original site_path directive
+# See: bin/default
+CONFIG_PATH_wwwdir=type=bind,source="${DATA}/www",destination=/home/www
+CONFIG_PATH_datadir=type=bind,source="${ASSET}/mysql",destination=/var/lib/mysql
+CONFIG_PATH_siteconfdir=type=bind,source="${DATA}/apache2/sites-enabled",destination=/etc/apache2/sites-enabled
+
+# DONOT ENABLE GUI
+ENABLE_GUI=0
+
+DEPENDS=
+CONTAINERS="server:phpfpm server:mariadb server:apache"
+DATAS=
+ASSETS=
+PACKAGES=
+
+
+# Database section
+# currently support single database.
+DB_IMAGE=server:mariadb
+DB_CONTAINER=webserver-db
+DB_PORT=3306
+DB_NAME=webserver
+DB_USER=webserver
+DB_PASSWORD=webserver
+DB_DATA_DIR=${ASSET}/mysql
+DB_BACKUP_DIR=${DATA}/sql
+
+# Node balancer
+BALANCER_IMAGE=server:apache
+BALANCER_CONTAINER=webserver-balancer
+BALANCER_LOG_LEVEL="warn"
+BALANCER_ENABLE_SSL=1
+BALANCER_SSL_ONLY=0
+BALANCER_CERTIFICATE_PATH=${ASSET}/ssl
+BALANCER_LOG_FILE=${DATA}/balancer.log
+BALANCER_ERROR_LOG_FILE=${DATA}/balancer.error.log
+
+# Webserver
+WEB_IMAGE=server:apache
+WEB_CONTAINER=webserver-server
+WEB_ROOT=${DATA}/www
+DOCUMENT_ROOT=/home/www
+SITE_NAME=example.com
+SITE_ALIAS="www.example.com"
+WEB_LOG_LEVEL="warn"
+# WEB_DOCUMENT_REPO="git@github.com/user/repo.git"
+WEB_LOG_FILE=${DATA}/webserver.log
+WEB_ERROR_LOG_FILE=${DATA}/webserver.error.log
+
+# PHP application server
+APP_IMAGE=server:phpfpm
+APP_CONTAINER=webserver-app
+# APP_MEMMORY_LIMIT=512M
+APP_ASSET=${DATA}/www
+APP_ASSET_REPO=${WEB_DOCUMENT_REPO}
+APP_PRIVATE_ROOT=${ASSET}/www
+# Make some directories writable.
+# APP_DOCUMENT_ASSET_upload=uploads
+# APP_DOCUMENT_ASSET_backup=backups
+
+# Add some files invisible to apache.
+# APP_PRIVATE_ASSET_db_config=config/database.php
+# APP_DOCUMENT_ASSET_cache=cache
+
+APP_LISTEN_PORT=5555
+APP_EXPOSE_PORT=5555
+APP_DEBUG_MAP_PORT=1
+APP_FROM_MAIL_ADDRESS="user@example.com"
+APP_ENVIRONMENT=$(git rev-parse --abbrev-ref HEAD)
+
+# Dns masq
+DNS_IMAGE=server:dnsmasq
+DNS_CONTAINER=webserver-dns
+DNS_SERVER=8.8.8.8
+DNS_ALLOWED_HOSTS="/google.com"
+DNS_LOCAL_HOSTS=""
+DNS_LOG_FILE=${DATA}/dns.log
+
+# POSTFIX
+MAIL_IMAGE=server:postfix
+MAIL_CONTAINER=webserver-mail
+
+MAIL_HOST_NAME=example.com
+# MAIL_DESTINATION=mail.example.com
+# MAIL_RELAY_DOMAINS=localhost
+# MAIL_BANNER=
+# MAIL_RELAY=smtp.google.com
+# MAIL_PORT=587
+# MAIL_USER=user@example.com
+# MAIL_PASSWORD='******'
+MAIL_LOG_FILE=${DATA}/mail.log

@@ -45,7 +45,8 @@ ENV FILE_UPLOAD=On \
 #    MAIL_PASSWORD= \
 #    MAIL_USER= \
 #    FROM_MAIL_ADDRESS=no-replay@example.com \
-#    DNS_SERVER=127.0.0.1
+#    DNS_SERVER=127.0.0.1 \
+#    FROM_MAIL_ADDRESS=noreply@example.com
 
 COPY data /
 
