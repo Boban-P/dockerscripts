@@ -9,22 +9,20 @@
 exists=$(docker ps -q -f 'name=^'"${DB_CONTAINER}"'$')
 start="$(dockerinfo startup_command "${DB_IMAGE}")"
 
-if [[ ! -d "${DB_DATA_DIR}" ]]; then
-    mkdir -p "${DB_DATA_DIR}"
-fi
-export SITE_PATH_data_dir="type=bind,source=${DB_DATA_DIR},destination=/var/lib/mysql"
-
-
 if [[ -z "${DB_PORT}" ]]; then
     DB_PORT="$(dockerinfo variable "${DB_IMAGE}" SERVER_PORT)"
 else
     export DOCKER_OPTION_listen_port="-e=SERVER_PORT=${DB_PORT}"
 fi
 
-
 case "$1" in
     start)
         if [[ -z "${exists}" ]]; then
+
+            if [[ ! -d "${DB_DATA_DIR}" ]]; then
+                mkdir -p "${DB_DATA_DIR}"
+            fi
+            export SITE_PATH_data_dir="type=bind,source=${DB_DATA_DIR},destination=/var/lib/mysql"
 
             if [[ -z "$(ls -A "${DB_DATA_DIR}")" ]]; then
                 # install mysql database.

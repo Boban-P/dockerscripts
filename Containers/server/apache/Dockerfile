@@ -4,9 +4,13 @@ MAINTAINER Boban Pulinchery <boban@ecodiver.in>
 
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-                   apache2 \
+                   ca-certificates \
                    ssl-cert \
                    procps \
+    && echo "deb https://deb.debian.org/debian buster-backports main" >>/etc/apt/sources.list \
+    && apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get -t buster-backports install -y --no-install-recommends \
+                   apache2 \
     && rm -rf /var/lib/apt/lists/*
 
 
@@ -23,20 +27,26 @@ RUN apt-get update && \
 # additionally when starting the container, env can be set/modified.
 # startup.sh will recognize this and configure the server accordingly.
 
-ENV LISTEN_PORT=80 \
-    LISTEN_SSLPORT=443 \
-    SITE_NAME=localhost \
-    SITE_ALIAS= \
-    SITE_ADMIN=webmaster@localhost \
-    SSL_ON=0 \
-    ENABLE_MODE_balancer=0 \
-    ENABLE_MODE_rewrite=1 \
-    PHP_BALANCER_URL=127.0.0.1:5555 \
-    PHP_ENVIRONMENT="development" \
-    CHILD_BALANCER_URL=127.0.0.1:8080 \
-    DOCUMENT_ROOT= \
-    SITE_LOG_LEVEL=warn \
-    SSL_ONLY=0
+# ENV LISTEN_PORT=80 \
+#     LISTEN_SSLPORT=443 \
+#     SITE_NAME=localhost \
+#     SITE_ALIAS= \
+#     SITE_ADMIN=webmaster@localhost \
+#     SSL_ON=0 \
+#     ENABLE_MODE_balancer=0 \
+#     ENABLE_MODE_rewrite=1 \
+#     PHP_BALANCER_URL=127.0.0.1:5555 \
+#     PHP_ENVIRONMENT="development" \
+#     CHILD_BALANCER_URL=127.0.0.1:8080 \
+#     DOCUMENT_ROOT= \
+#     SITE_LOG_LEVEL=warn \
+#     SSL_ONLY=0 \
+#     TRUSTED_PROXY="" \
+#     SERVER_SIGNATURE="Off" \
+#     SERVER_TOKEN="Prod" \
+#     TRACE_ENABLE="Off" \
+#     ACME_ENABLE=0 \
+#     ACME_PROVIDER=letsencrypt|letsencrypt-staging(default)|https://url.to.certificat/provider/path
 
 
 COPY startup.sh phpBalancer.sh childBalancer.sh /

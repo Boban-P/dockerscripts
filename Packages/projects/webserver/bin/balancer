@@ -15,6 +15,7 @@ if [[ -z "${exists}" ]]; then
     # get exposed port
     if [[ -z "${BALANCER_LISTEN_PORT}" ]]; then
         BALANCER_LISTEN_PORT=$(dockerinfo variable "${BALANCER_IMAGE}" LISTEN_PORT)
+        BALANCER_LISTEN_PORT="${BALANCER_LISTEN_PORT:-80}"
     else
         export DOCKER_OPTION_listen_port="-e=LISTEN_PORT=${BALANCER_LISTEN_PORT}"
     fi
@@ -36,6 +37,12 @@ if [[ -z "${exists}" ]]; then
         if [[ "${BALANCER_SSL_ONLY:-0}" != "0" ]]; then
             export DOCKER_OPTION_ssl_only="-e=SSL_ONLY=1"
         fi
+        if [[ -n "${BALANCER_CONFIG_PATH}" ]]; then
+            if [[ ! -d "${BALANCER_CONFIG_PATH}" ]]; then
+                mkdir -p "${BALANCER_CONFIG_PATH}"
+            fi
+            export SITE_PATH_md_dir=type=bind,source=${BALANCER_CONFIG_PATH},destination=/etc/apache2/md
+        fi
         if [[ -n "${BALANCER_CERTIFICATE_PATH}" ]]; then
             if [[ ! -d "${BALANCER_CERTIFICATE_PATH}" ]]; then
                 mkdir -p "${BALANCER_CERTIFICATE_PATH}"
@@ -43,8 +50,13 @@ if [[ -z "${exists}" ]]; then
             export SITE_PATH_ssl_dir=type=bind,source=${BALANCER_CERTIFICATE_PATH},destination=/etc/apache2/ssl
         fi
 
+        if [[ -n ${BALANCER_CERTIFICATE_AUTHORITY} ]]; then
+            export DOCKER_OPTION_acme_provider="-e=ACME_PROVIDER=${BALANCER_CERTIFICATE_AUTHORITY}"
+        fi
+
         if [[ -z "${BALANCER_LISTEN_SSLPORT}" ]]; then
             BALANCER_LISTEN_SSLPORT=$(dockerinfo variable "${BALANCER_IMAGE}" LISTEN_SSLPORT)
+            BALANCER_LISTEN_SSLPORT=${BALANCER_LISTEN_SSLPORT:-443}
         else
             export DOCKER_OPTION_listen_sslport="-e=LISTEN_SSLPORT=${BALANCER_LISTEN_SSLPORT}"
         fi

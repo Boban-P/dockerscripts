@@ -11,8 +11,6 @@ sed -i -e "s@^listen = .*@listen = ${FPM_LISTEN_PORT}@" \
     -e 's/group = www-data/group = 1000/' \
     /etc/php/"${PHP_VERSION}"/fpm/pool.d/www.conf
 
-MAIL_CONFIG_FILE=/etc/msmtp.conf
-
 # change configurable server values.
 for file in "/etc/php/${PHP_VERSION}/fpm/php.ini" "/etc/php/${PHP_VERSION}/cli/php.ini"
 do
@@ -24,7 +22,7 @@ do
         -e 's/upload_max_filesize = .*/upload_max_filesize = '"${MAX_FILE_UPLOAD_SIZE}"'/' \
         -e 's/post_max_size = .*/post_max_size = '"${MAX_POST_SIZE}"'/' \
         -e 's/max_input_vars = .*/max_input_vars = '"${MAX_INPUT_VARS}"'/' \
-        -e 's@^;sendmail_path =@sendmail_path = "/usr/bin/msmtp -C '"${MAIL_CONFIG_FILE}"' -t"@' \
+        -e 's@^;sendmail_path =@sendmail_path = "/usr/bin/msmtp -t"@' \
         "${file}"
 done
 
@@ -36,7 +34,7 @@ sed -i \
     -e "s/^port MAIL_FORWARD_PORT/port ${MAIL_FORWARD_PORT:-25}/" \
     -e "s/^user MAIL_USER/user ${MAIL_USER:-someuser}/" \
     -e "s/^password MAIL_PASSWORD/password ${MAIL_PASSWORD:-somepassword}/" \
-    /etc/msmtp.conf
+    /etc/msmtprc
 
 # Custom dns server
 if [[ -n ${DNS_SERVER} ]]; then

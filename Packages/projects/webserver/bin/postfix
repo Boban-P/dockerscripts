@@ -21,6 +21,11 @@ if [[ -z "${exists}" ]]; then
             touch "${MAIL_LOG_FILE}"
         fi
     fi
+    if [[ -n "${MAIL_CERTIFICATE_ROOT}" ]]; then
+        export SITE_PATH_mail_cert="type=bind,source=${MAIL_CERTIFICATE_ROOT},destination=/etc/postfix/certs"
+        export DOCKER_OPTION_key_file="-e=KEY_FILE=${MAIL_CERTIFICATE_KEY}"
+        export DOCKER_OPTION_cert_file="-e=CERT_FILE=${MAIL_CERTIFICATE}"
+    fi
 fi
 
 case "${1}" in

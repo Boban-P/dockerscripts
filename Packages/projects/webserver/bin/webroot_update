@@ -9,14 +9,14 @@ case "${branch}"  in
     production)
         target=production
         ;;
-    working|dev)
-        target=dev
+    working|dev|development)
+        target=development
         ;;
     staging|testing)
         target=staging
         ;;
     *)
-        target=dev
+        target=development
         ;;
 esac
 

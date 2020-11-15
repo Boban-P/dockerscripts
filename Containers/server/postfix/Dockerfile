@@ -22,7 +22,9 @@ RUN apt-get update && \
 #     PORT= \
 #     USER= \
 #     PASSWORD= \
-#     MAIL_LOG=/dev/stdout
+#     MAIL_LOG=/dev/stdout \
+#     KEY_FILE=PATH/TO/KEY from /etc/postfix/certs\
+#     CERT_FILE=PATH/TO/CERT from /etc/postfix/certs\
 
 COPY data /
 

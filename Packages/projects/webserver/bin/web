@@ -15,20 +15,21 @@ if [[ (${#exists[@]} -eq 1) && (-z "${exists[0]}") ]]; then
     exists=()
 fi
 
-# create document root if it do not exits.
-if [[ ! -d "${WEB_ROOT}" ]]; then
-    mkdir -p "${WEB_ROOT}"
-    webroot_update
-fi
-
 # get exposed port
 if [[ -z "${WEB_LISTEN_PORT}" ]]; then
     WEB_LISTEN_PORT=$(dockerinfo variable "${WEB_IMAGE}" LISTEN_PORT)
+    WEB_LISTEN_PORT=${WEB_LISTEN_PORT:-80}
 else
     export DOCKER_OPTION_listen_port="-e=LISTEN_PORT=${WEB_LISTEN_PORT}"
 fi
 
 if [[ (${#exists[@]} -eq 0) || ("${1}" = "start") ]]; then
+
+    # create document root if it do not exits.
+    if [[ ! -d "${WEB_ROOT}" ]]; then
+        mkdir -p "${WEB_ROOT}"
+        webroot_update
+    fi
 
     if [[ -n "$3" ]]; then
         export DOCKER_OPTION_bind_port="--publish=${3}:${WEB_LISTEN_PORT}"
@@ -77,6 +78,9 @@ case "$1" in
         if [[ $# -lt 2 ]]; then
             echo "application server url required"
             exit
+        fi
+        if [[ -n "${4}" ]]; then
+            export DOCKER_OPTION_proxy_env="-e=TRUSTED_PROXY=${4}"
         fi
         cmd "${container}" "${WEB_IMAGE}" -d -e ENABLE_MODE_balancer=1 -e PHP_BALANCER_URL="${2}" --  -- "${start}"
         ;;

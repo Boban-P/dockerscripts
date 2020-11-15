@@ -18,16 +18,15 @@ if [[ (${#exists[@]} -eq 1) && (-z "${exists[0]}") ]]; then
     exists=()
 fi
 
+if [[ -z "${APP_LISTEN_PORT}" ]]; then
+    APP_LISTEN_PORT=$(dockerinfo variable "${APP_IMAGE}" FPM_LISTEN_PORT)
+else
+    export DOCKER_OPTION_listen_port="-e=FPM_LISTEN_PORT=${APP_LISTEN_PORT}"
+fi
+
 if [[ ("${#exists[@]}" -eq 0) || ("${1}" = "start") ]]; then
     # mount document root.
     export SITE_PATH_document_root=type=bind,source="${WEB_ROOT}",destination="${DOCUMENT_ROOT}",readonly
-
-
-    if [[ -z "${APP_LISTEN_PORT}" ]]; then
-        APP_LISTEN_PORT=$(dockerinfo variable "${APP_IMAGE}" FPM_LISTEN_PORT)
-    else
-        export DOCKER_OPTION_listen_port="-e=FPM_LISTEN_PORT=${APP_LISTEN_PORT}"
-    fi
 
     # create document root if it do not exits.
     if [[ ! -d "${APP_ASSET}" ]]; then
