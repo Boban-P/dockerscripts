@@ -48,7 +48,7 @@ for line in $(env | grep -e '^ENABLE_MODE_'); do
                 if [[ ( -n "${DOCUMENT_ROOT}" ) && ( -n "${PHP_BALANCER_URL}" ) ]]; then
                     modules+=(proxy_fcgi)
                 else
-                    modules+=(proxy_http)
+                    modules+=(proxy_http headers)
                 fi
                 ;;
             *)
@@ -116,7 +116,7 @@ if [[ "${ENABLE_MODE_balancer:-0}" == "1" ]]; then
     #ProxyPassMatch ^/(.*\.php)$ balancer://phpcluster${DOCUMENT_ROOT%/}/\$1
     <FilesMatch \.php$>
         ${envset}
-        SetEnv HTTPS on
+        SetEnvIf  X-FORWARDED-HTTPS \"yes\" HTTPS=on
         SetHandler \"proxy:balancer://phpcluster\"
     </FilesMatch>
 "
@@ -210,10 +210,11 @@ SSLStaplingCache \"shmcb:logs/ssl_stapling\"
     if [[ "${SSL_ONLY:-0}" != "0" ]]; then
         hostfile="
 <VirtualHost *:${LISTEN_PORT}>
-             ServerName ${SITE_NAME}
-             ${SITE_ALIAS}
-             ServerAdmin ${SITE_ADMIN}
-             Redirect permanent / https://${SITE_NAME}/
+    ServerName ${SITE_NAME}
+    ${SITE_ALIAS}
+    ServerAdmin ${SITE_ADMIN}
+    RequestHeader unset X-FORWARDED-HTTPS
+    Redirect permanent / https://${SITE_NAME}/
 </VirtualHost>
 "
     fi
@@ -221,6 +222,7 @@ SSLStaplingCache \"shmcb:logs/ssl_stapling\"
     hostfile="${ACME_CONF}${hostfile}
 <VirtualHost *:${LISTEN_SSLPORT}>
 ${VHOST_CONF}
+RequestHeader set X-FORWARDED-HTTPS yes
 ${SSLEngine_CONF}
     <FilesMatch \"\\.(cgi|shtml|phtml|php)$\">
         SSLOptions +StdEnvVars
