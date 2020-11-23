@@ -1,0 +1,111 @@
+#!/bin/bash
+#!/bin/bash
+
+#################
+# DEFAULT VALUES#
+#################
+LISTEN_PORT=${LISTEN_PORT:-80}
+LISTEN_SSLPORT=${LISTEN_SSLPORT:-443}
+SITE_NAME=${SITE_NAME:-localhost}
+# SITE_ALIAS=
+# SITE_ADMIN=${SITE_ADMIN:-"webmaster@${SITE_NAME}"}
+SSL_ON=${SSL_ON:-0}
+# APP_BALANCER_URL=${APP_BALANCER_URL:-"127.0.0.1:5555"}
+# APP_ENVIRONMENT=${APP_ENVIRONMENT:-"development"}
+# CHILD_BALANCER_URL=${CHILD_BALANCER_URL:-"127.0.0.1:8080"}
+# DOCUMENT_ROOT=
+# SITE_LOG_LEVEL=${SITE_LOG_LEVEL:-warn}
+# TRUSTED_PROXY=""
+# On | Off | EMail
+SERVER_SIGNATURE=${SERVER_SIGNATURE:-"Off"}
+# Full | OS | Minimal | Minor | Major | Prod
+SERVER_TOKEN=${SERVER_TOKEN:-"Prod"}
+# Set to one of:  On | Off | extended
+TRACE_ENABLE=${TRACE_ENABLE:-"Off"}
+# Set to one of: production | staging
+# ACME_ENABLE=0 \
+# ACME_PROVIDER=letsencrypt|letsencrypt-staging(default)|https://url.to.certificat/provider/path
+
+a2dissite 000-default >/dev/null
+
+sed -i -e "s/Listen 80/Listen ${LISTEN_PORT}/" -e "s/Listen 443/Listen ${LISTEN_SSLPORT}/" /etc/apache2/ports.conf
+echo "ServerName ${SITE_NAME}" >>/etc/apache2/apache2.conf
+
+# enable new modules
+modules=()
+for line in $(env | grep -e '^ENABLE_MODE_'); do
+    data=${line#ENABLE_MODE_}
+    name=${data%=*}
+    if [[ (-n ${data#*=}) && (${data#*=} != "0") ]]; then
+        modules+=("$name")
+    fi
+done
+
+case "${CONFIG_TYPE}" in
+    phpapp|pythonapp)
+        modules+=(proxy_balancer lbmethod_byrequests remoteip proxy_fcgi rewrite)
+        ;;
+    balancer)
+        modules+=(proxy_balancer lbmethod_byrequests remoteip proxy_http headers rewrite)
+        ;;
+esac
+
+if [[ "${SSL_ON:-0}" != "0" ]]; then
+    modules+=(ssl md)
+fi
+
+if [[ ${#modules[@]} -gt 0 ]]; then
+    a2enmod "${modules[@]}" >/dev/null
+fi
+
+# enable new configurations
+confs=()
+for line in $(env | grep -e '^ENABLE_CONF_'); do
+    data=${line#ENABLE_CONF_}
+    if [[ (-n ${data#*=}) && (${data#*=} != "0") ]]; then
+        confs+=("${data%=*}")
+    fi
+done
+
+if [[ ${#confs[@]} -gt 0 ]]; then
+    a2enconf "${confs[@]}" >/dev/null
+fi
+
+# SECURITY
+# Set to one of:  Full | OS | Minimal | Minor | Major | Prod
+# ServerTokens ${SERVER_TOKEN}
+# Set to one of:  On | Off | EMail
+# ServerSignature ${SERVER_SIGNATURE}
+# Set to one of:  On | Off | extended
+# TraceEnable ${TRACE_ENABLE}
+sed -i -e 's/^ServerTokens .*$/ServerTokens '"${SERVER_TOKEN}/" \
+    -e 's/^ServerSignature .*$/ServerSignature '"${SERVER_SIGNATURE}/" \
+    -e 's/^TraceEnable .*$/TraceEnable '"${TRACE_ENABLE}/" \
+    /etc/apache2/conf-available/security.conf
+
+if [[ -n "${DOCUMENT_ROOT}" ]]; then
+    export DOCUMENT_ROOT="
+    DocumentRoot \"${DOCUMENT_ROOT}\"
+    <Directory \"${DOCUMENT_ROOT}\">
+        Options Indexes FollowSymLinks MultiViews
+        AllowOverride All
+        Require all granted
+    </Directory>
+"
+fi
+
+if [[ -n "${CONFIG_TYPE}" ]]; then
+    case "${CONFIG_TYPE}" in
+    balancer)
+        /usr/local/bin/balancerConfig
+    ;;
+    phpapp)
+        /usr/local/bin/phpConfig
+    ;;
+    pythonapp)
+        /usr/local/bin/pythonConfig
+    ;;
+    *)
+    ;;
+    esac
+fi

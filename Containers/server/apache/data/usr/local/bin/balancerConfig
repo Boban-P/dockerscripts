@@ -1,0 +1,11 @@
+#!/bin/bash
+
+export BALANCER="    RemoteIPHeader X-Client-IP
+    <Proxy \"balancer://childcluster\">
+#CHILDBALANCER           BalancerMember \"http://BALANCER_URL\"
+    </Proxy>
+    ProxyPass        \"/\" \"balancer://childcluster/\"
+    ProxyPassReverse \"/\" \"balancer://childcluster/\"
+"
+
+/usr/local/bin/vhosts

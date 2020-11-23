@@ -33,10 +33,9 @@ RUN apt-get update && \
 #     SITE_ALIAS= \
 #     SITE_ADMIN=webmaster@localhost \
 #     SSL_ON=0 \
-#     ENABLE_MODE_balancer=0 \
-#     ENABLE_MODE_rewrite=1 \
-#     PHP_BALANCER_URL=127.0.0.1:5555 \
-#     PHP_ENVIRONMENT="development" \
+#     CONFIG_TYPE=balancer|phpapp|pythonapp
+#     APP_BALANCER_URL=127.0.0.1:5555 \
+#     APP_ENVIRONMENT="development" \
 #     CHILD_BALANCER_URL=127.0.0.1:8080 \
 #     DOCUMENT_ROOT= \
 #     SITE_LOG_LEVEL=warn \
@@ -47,10 +46,11 @@ RUN apt-get update && \
 #     TRACE_ENABLE="Off" \
 #     ACME_ENABLE=0 \
 #     ACME_PROVIDER=letsencrypt|letsencrypt-staging(default)|https://url.to.certificat/provider/path
+#     PATH_ALIASES=location=path,location2=path2
 
 
-COPY startup.sh phpBalancer.sh childBalancer.sh /
+COPY data /
 
-ENTRYPOINT ["/startup.sh"]
+ENTRYPOINT ["/usr/sbin/entrypoint.sh"]
 
 CMD ["apachectl" , "-D", "FOREGROUND"]

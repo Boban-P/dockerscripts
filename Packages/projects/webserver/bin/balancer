@@ -12,6 +12,23 @@ start="$(dockerinfo startup_command "${BALANCER_IMAGE}")"
 exists=$(docker ps -f 'name=^'"${BALANCER_CONTAINER}"'$' -q)
 
 if [[ -z "${exists}" ]]; then
+
+    args=()
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --sitename)
+                SITE_ALIAS="${SITE_ALIAS} ${2}"
+                shift
+                shift
+            ;;
+            *)
+                args+=("$1")
+                shift
+            ;;
+        esac
+    done
+    set -- "${args[@]}"
+
     # get exposed port
     if [[ -z "${BALANCER_LISTEN_PORT}" ]]; then
         BALANCER_LISTEN_PORT=$(dockerinfo variable "${BALANCER_IMAGE}" LISTEN_PORT)
@@ -93,7 +110,7 @@ case "$1" in
                 echo "CHILD web server url required"
                 exit
             fi
-            cmd "${BALANCER_CONTAINER}" "${BALANCER_IMAGE}" -d -e ENABLE_MODE_balancer=1 -e CHILD_BALANCER_URL="${2}" --  -- "${start}"
+            cmd "${BALANCER_CONTAINER}" "${BALANCER_IMAGE}" -d -e CONFIG_TYPE=balancer  -e CHILD_BALANCER_URL="${2}" --  -- "${start}"
         fi
         ;;
     stop)
@@ -104,14 +121,14 @@ case "$1" in
             echo "child web server url required"
             exit;
         fi
-        cmd "${BALANCER_CONTAINER}" "${BALANCER_IMAGE}" /childBalancer.sh add "${2}"
+        cmd "${BALANCER_CONTAINER}" "${BALANCER_IMAGE}" childBalancer.sh add "${2}"
         ;;
     phpRemove)
         if [[ $# -lt 2 ]]; then
             echo "CHILD web server url required"
             exit;
         fi
-        cmd "${BALANCER_CONTAINER}" "${BALANCER_IMAGE}" /childBalancer.sh remove "${2}"
+        cmd "${BALANCER_CONTAINER}" "${BALANCER_IMAGE}" childBalancer.sh remove "${2}"
         ;;
     env)
         env

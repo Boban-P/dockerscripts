@@ -82,7 +82,7 @@ case "$1" in
         if [[ -n "${4}" ]]; then
             export DOCKER_OPTION_proxy_env="-e=TRUSTED_PROXY=${4}"
         fi
-        cmd "${container}" "${WEB_IMAGE}" -d -e ENABLE_MODE_balancer=1 -e PHP_BALANCER_URL="${2}" --  -- "${start}"
+        cmd "${container}" "${WEB_IMAGE}" -d -e CONFIG_TYPE=phpapp -e APP_BALANCER_URL="${2}" --  -- "${start}"
         ;;
     stop)
         if [[ ${#exists[@]} -gt 0 ]]; then
@@ -105,14 +105,14 @@ case "$1" in
             echo "server id and application server url required"
             exit;
         fi
-        cmd "${WEB_CONTAINER}${2}" "${WEB_IMAGE}" -- /phpBalancer.sh add "${3}"
+        cmd "${WEB_CONTAINER}${2}" "${WEB_IMAGE}" -- appBalancer.sh add "${3}"
         ;;
     phpRemove)
         if [[ $# -lt 2 ]]; then
             echo "server id and application url required"
             exit;
         fi
-        cmd "${WEB_CONTAINER}${2}" "${WEB_IMAGE}" -- /phpBalancer.sh remove "${3}"
+        cmd "${WEB_CONTAINER}${2}" "${WEB_IMAGE}" -- appBalancer.sh remove "${3}"
         ;;
     url)
         id=${2:-0}
@@ -124,6 +124,6 @@ case "$1" in
             id=${1}
             shift
         fi
-        cmd "${WEB_CONTAINER}${id}" "${WEB_IMAGE}" -ti -e ENABLE_MODE_balancer=1 -- -ti -- "$@"
+        cmd "${WEB_CONTAINER}${id}" "${WEB_IMAGE}" -ti -e CONFIG_TYPE=phpapp -- -ti -- "$@"
         ;;
 esac

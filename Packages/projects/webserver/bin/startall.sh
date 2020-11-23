@@ -5,6 +5,7 @@
 ip=""
 publicip=""
 args=()
+sitename=()
 while [[ $# -gt 0 ]]; do
     case $1 in
         --ip)
@@ -14,6 +15,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         --public)
             publicip=${2}
+            shift
+            shift
+            ;;
+        --sitename)
+            sitename+=("--sitename" "${2}")
             shift
             shift
             ;;
@@ -58,6 +64,6 @@ case "$1" in
         db start "${ip}":3306
         app start -d "${ip}" -m "${ip}" -n "${ip}" "${ip}":
         web start "$(app url 0)" "${ip}": "${publicip}"
-        balancer start "$(web url 0)" "${publicip}"
+        balancer start "$(web url 0)" "${publicip}" "${sitename[@]}"
         ;;
 esac
