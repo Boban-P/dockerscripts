@@ -6,7 +6,7 @@ source /phpversion.conf
 mkdir /run/php
 
 # make fpm process to listen on defined port.
-sed -i -e "s@^listen = .*@listen = ${FPM_LISTEN_PORT}@" \
+sed -i -e "s@^listen = .*@listen = ${LISTEN_PORT}@" \
     -e 's/user = www-data/user = 1000/' \
     -e 's/group = www-data/group = 1000/' \
     /etc/php/"${PHP_VERSION}"/fpm/pool.d/www.conf

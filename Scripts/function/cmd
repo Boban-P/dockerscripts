@@ -165,10 +165,12 @@ if [[ -z "$(docker ps -f name=^"${firstCommand}"\$ -q)" ]]; then
 
     DOCKER_OPTIONS=()
     # Get generic docker options.
-	mapfile -t lines <<< "$(env | grep -e '^DOCKER_OPTION_')"
+    mapfile -t lines <<< "$(env | grep -e '^DOCKER_OPTION_')"
     for line in "${lines[@]}"; do
-	value=${line#DOCKER_OPTION_}
-	DOCKER_OPTIONS+=("${value#*=}")
+        if [[ -n "$line" ]]; then
+            value=${line#DOCKER_OPTION_}
+            DOCKER_OPTIONS+=("${value#*=}")
+        fi
     done
 
     docker run --rm \

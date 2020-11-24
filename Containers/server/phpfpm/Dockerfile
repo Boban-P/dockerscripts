@@ -40,13 +40,12 @@ ENV FILE_UPLOAD=On \
     MAX_FILE_UPLOAD_SIZE=200M \
     MAX_POST_SIZE=400M \
     MAX_INPUT_VARS=1500 \
-    FPM_LISTEN_PORT=80
+    LISTEN_PORT=80
 #    MAIL_FORWARD_HOST=smtp.google.com \
 #    MAIL_PASSWORD= \
 #    MAIL_USER= \
 #    FROM_MAIL_ADDRESS=no-replay@example.com \
-#    DNS_SERVER=127.0.0.1 \
-#    FROM_MAIL_ADDRESS=noreply@example.com
+#    DNS_SERVER=127.0.0.1
 
 COPY data /
 

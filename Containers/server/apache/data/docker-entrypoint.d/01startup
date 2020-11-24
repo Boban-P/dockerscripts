@@ -42,10 +42,10 @@ for line in $(env | grep -e '^ENABLE_MODE_'); do
 done
 
 case "${CONFIG_TYPE}" in
-    phpapp|pythonapp)
+    phpapp)
         modules+=(proxy_balancer lbmethod_byrequests remoteip proxy_fcgi rewrite)
         ;;
-    balancer)
+    balancer|pythonapp)
         modules+=(proxy_balancer lbmethod_byrequests remoteip proxy_http headers rewrite)
         ;;
 esac

@@ -45,19 +45,23 @@ WEB_IMAGE=server:apache
 WEB_CONTAINER=webserver-server
 WEB_ROOT=${DATA}/www
 DOCUMENT_ROOT=/home/www
+# PATH_ALIASES='/static/=/home/www/static/'
 SITE_NAME=example.com
 SITE_ALIAS="www.example.com"
 WEB_LOG_LEVEL="warn"
-# WEB_DOCUMENT_REPO="git@github.com/user/repo.git"
+# WEB_CONFIG_TYPE="phpapp|pythonapp|"
+# WEB_DOCUMENT_REPO="git@github.com:user/repo.git"
+# WEB_REPO_BRANCH="development"
 WEB_LOG_FILE=${DATA}/webserver.log
 WEB_ERROR_LOG_FILE=${DATA}/webserver.error.log
 
 # PHP application server
 APP_IMAGE=server:phpfpm
 APP_CONTAINER=webserver-app
-# APP_MEMMORY_LIMIT=512M
+# APP_ENV_MEMMORY_LIMIT=512M
 APP_ASSET=${DATA}/www
 APP_ASSET_REPO=${WEB_DOCUMENT_REPO}
+APP_REPO_BRANCH=${WEB_REPO_BRANCH}
 APP_PRIVATE_ROOT=${ASSET}/www
 # Make some directories writable.
 # APP_DOCUMENT_ASSET_upload=uploads
@@ -70,7 +74,7 @@ APP_PRIVATE_ROOT=${ASSET}/www
 APP_LISTEN_PORT=5555
 APP_EXPOSE_PORT=5555
 APP_DEBUG_MAP_PORT=1
-APP_FROM_MAIL_ADDRESS="noreplay@${SITE_NAME}"
+APP_ENV_FROM_MAIL_ADDRESS="noreplay@${SITE_NAME}"
 APP_ENVIRONMENT=$(git rev-parse --abbrev-ref HEAD)
 
 # Dns masq

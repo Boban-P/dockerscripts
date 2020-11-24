@@ -19,19 +19,23 @@ if [[ (${#exists[@]} -eq 1) && (-z "${exists[0]}") ]]; then
 fi
 
 if [[ -z "${APP_LISTEN_PORT}" ]]; then
-    APP_LISTEN_PORT=$(dockerinfo variable "${APP_IMAGE}" FPM_LISTEN_PORT)
+    APP_LISTEN_PORT=$(dockerinfo variable "${APP_IMAGE}" LISTEN_PORT)
 else
-    export DOCKER_OPTION_listen_port="-e=FPM_LISTEN_PORT=${APP_LISTEN_PORT}"
+    export DOCKER_OPTION_listen_port="-e=LISTEN_PORT=${APP_LISTEN_PORT}"
 fi
 
 if [[ ("${#exists[@]}" -eq 0) || ("${1}" = "start") ]]; then
     # mount document root.
-    export SITE_PATH_document_root=type=bind,source="${WEB_ROOT}",destination="${DOCUMENT_ROOT}",readonly
+    if [[ -n "${APP_WRITE_MOUNT//0/}" ]]; then
+        export SITE_PATH_document_root=type=bind,source="${WEB_ROOT}",destination="${DOCUMENT_ROOT}"
+    else
+        export SITE_PATH_document_root=type=bind,source="${WEB_ROOT}",destination="${DOCUMENT_ROOT}",readonly
+    fi
 
     # create document root if it do not exits.
     if [[ ! -d "${APP_ASSET}" ]]; then
         mkdir -p "${APP_ASSET}"
-        webroot_update "${APP_ASSET}" "${APP_ASSET_REPO}"
+        webroot_update "${APP_ASSET}" "${APP_ASSET_REPO}" "${APP_REPO_BRANCH}"
     fi
 
     if [[ (-n "${APP_PRIVATE_ROOT}") && (! -d "${APP_PRIVATE_ROOT}") ]]; then
@@ -55,13 +59,28 @@ if [[ ("${#exists[@]}" -eq 0) || ("${1}" = "start") ]]; then
             export DOCKER_OPTION_debug_portmap="-p=${mapip}:${APP_DEBUG_PORT}:${container_port}"
         fi
     fi
-
-    test -n "${APP_FROM_MAIL_ADDRESS}" && \
-        export DOCKER_OPTION_from_mail_address="-e=FROM_MAIL_ADDRESS=${APP_FROM_MAIL_ADDRESS}"
     
-    test -n "${APP_MEMMORY_LIMIT}" && \
-        export DOCKER_OPTION_memmory_limit="-e=MEMMORY_LIMIT=${APP_MEMMORY_LIMIT}"
-    
+    mapfile -t lines <<<"$(env | grep '^APP_ENV_')"
+    for line in "${lines[@]}"; do
+        if [[ -n "${line}" ]]; then
+			value=${line#APP_ENV_}
+            name="${value%%=*}"
+            variable="${value#*=}"
+            export "DOCKER_OPTION_env_${name}=-e=${name}=${variable}"
+        fi
+    done
+    mapfile -t lines <<<"$(env | grep '^APP_MOUNT_')"
+    for line in "${lines[@]}"; do
+        if [[ -n "${line}" ]]; then
+			value=${line#APP_MOUNT_}
+            name="${value%%=*}"
+			IFS="=" read -r -a value<<<"${value#*=}"
+            if [[ ${#value[@]} -eq 2 ]]; then
+                echo export "SITE_PATH_${name}=type=bind,source=${value[1]},destination=${value[0]}"
+                export "SITE_PATH_${name}=type=bind,source=${value[1]},destination=${value[0]}"
+            fi
+        fi
+    done
 fi
 
 case "$1" in
@@ -89,13 +108,14 @@ case "$1" in
                     shift
                     ;;
                 *)
-                    hostip=${1}
+                    IFS=: read -r -a ips<<<"${1}:"
+                    hostip="$(IFS=:; echo "${ips[*]:0:2}")"
                     ;;
             esac
             shift
         done
 
-        cmd "${APP_CONTAINER}${#exists[@]}" "${APP_IMAGE}" -d -p "${hostip}:${APP_LISTEN_PORT}" --  -- "${start}"
+        cmd "${APP_CONTAINER}${#exists[@]}" "${APP_IMAGE}" -d -w "${DOCUMENT_ROOT}" -p "${hostip#:*}:${APP_LISTEN_PORT}" --  -- "${start}"
         test -n "${database}" && cmd "${APP_CONTAINER}${#exists[@]}" "${APP_IMAGE}" host.sh add "dbhost" "${database}"
         ;;
     stop)
@@ -112,7 +132,7 @@ case "$1" in
         done
         ;;
     update)
-        webroot_update
+        webroot_update "${APP_ASSET}" "${APP_ASSET_REPO}" "${APP_REPO_BRANCH}"
         ;;
     hostAdd)
         if [[ $# -lt 3 ]]; then

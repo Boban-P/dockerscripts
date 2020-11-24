@@ -1,0 +1,5 @@
+#!/bin/bash
+
+if [[ -f "requirement.txt" ]]; then
+    pip install -r requirement.txt
+fi

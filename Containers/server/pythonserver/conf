@@ -1,0 +1,7 @@
+NAME=server-python
+
+DEPENDS=
+CONTAINERS=
+DATAS=
+ASSETS=
+PACKAGES=

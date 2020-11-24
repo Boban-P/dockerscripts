@@ -128,7 +128,7 @@ fi
 
 # Add app balancer node
 if [[ -n "${APP_BALANCER_URL}" ]];then
-    hostfile=$(sed 's%#APPBALANCER\(.*\)\(BalancerMember "fcgi://\)\(BALANCER_URL\)\(.*\)%\1\2'"${APP_BALANCER_URL}"'\4\n#APPBALANCER\1\2\3\4%' <<< "${hostfile}")
+    hostfile=$(sed 's%#APPBALANCER\(.*\)\(BalancerMember "[a-z]\+://\)\(BALANCER_URL\)\(.*\)%\1\2'"${APP_BALANCER_URL}"'\4\n#APPBALANCER\1\2\3\4%' <<< "${hostfile}")
 fi
 
 if [[ -n "${CHILD_BALANCER_URL}" ]]; then

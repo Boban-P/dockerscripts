@@ -2,24 +2,25 @@
 
 root="${1:-"${WEB_ROOT}"}"
 repo="${2:-"${WEB_DOCUMENT_REPO}"}"
-branch=$(git rev-parse --abbrev-ref HEAD)
-target=dev
-# GET appropriate branch for webserver and database
-case "${branch}"  in
-    production)
-        target=production
-        ;;
-    working|dev|development)
-        target=development
-        ;;
-    staging|testing)
-        target=staging
-        ;;
-    *)
-        target=development
-        ;;
-esac
-
+target="${3:-"${WEB_REPO_BRANCH}"}"
+if [[ -z "${target}" ]]; then
+    branch=$(git rev-parse --abbrev-ref HEAD)
+    # GET appropriate branch for webserver and database
+    case "${branch}"  in
+        production)
+            target=production
+            ;;
+        working|dev|development)
+            target=development
+            ;;
+        staging|testing)
+            target=staging
+            ;;
+        *)
+            target=development
+            ;;
+    esac
+fi
 if [[ -d "${root}/.git" ]]; then
     test -n "${repo}" && git -C "${root}" pull origin "${target}" >/dev/null
 else

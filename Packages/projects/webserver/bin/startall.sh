@@ -62,6 +62,7 @@ case "$1" in
         postfix start ${ip}:25
         dnsmasq start "${ip}":53
         db start "${ip}":3306
+        # ${ip}:${port}, "${ip}:" for assigning available port
         app start -d "${ip}" -m "${ip}" -n "${ip}" "${ip}":
         web start "$(app url 0)" "${ip}": "${publicip}"
         balancer start "$(web url 0)" "${publicip}" "${sitename[@]}"

@@ -3,8 +3,9 @@
 load_help () {
     echo "Usage: $1 $2 [command [args ...]]"
     echo "Commands"
-    
-    IFS=: read -r -a commands <<< "$(/usr/bin/uniq <(/usr/bin/find "${path1:-"${SCRIPT_DIR}/function"}" -maxdepth 1 -executable -type f -printf '%f\n' | /usr/bin/sort))"
+    local cpath
+    IFS=: read -r -a cpath<<<"${SCRIPT_DIR}/function:${path}"
+    mapfile -t commands <<< "$(/usr/bin/uniq <(IFS=: /usr/bin/find "${cpath[@]}" -maxdepth 1 -executable -type f -printf '%f\n' | /usr/bin/sort))"
     for file in "${commands[@]}"; do
 	echo $'\t'"${file}"
     done

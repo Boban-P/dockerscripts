@@ -69,6 +69,14 @@ if [[ (${#exists[@]} -eq 0) || ("${1}" = "start") ]]; then
     if [[ -n "${APP_ENVIRONMENT}" ]]; then
         export DOCKER_OPTION_php_env="-e=PHP_ENVIRONMENT=${APP_ENVIRONMENT}"
     fi
+
+    if [[ -n "${PATH_ALIASES}" ]]; then
+        export DOCKER_OPTION_path_alias="-e=PATH_ALIASES=${PATH_ALIASES}"
+    fi
+
+    if [[ -n "${WEB_CONFIG_TYPE}" ]]; then
+        export DOCKER_OPTION_app_type="-e=CONFIG_TYPE=${WEB_CONFIG_TYPE}"
+    fi
 fi
 
 case "$1" in
@@ -82,7 +90,7 @@ case "$1" in
         if [[ -n "${4}" ]]; then
             export DOCKER_OPTION_proxy_env="-e=TRUSTED_PROXY=${4}"
         fi
-        cmd "${container}" "${WEB_IMAGE}" -d -e CONFIG_TYPE=phpapp -e APP_BALANCER_URL="${2}" --  -- "${start}"
+        cmd "${container}" "${WEB_IMAGE}" -d -e APP_BALANCER_URL="${2}" --  -- "${start}"
         ;;
     stop)
         if [[ ${#exists[@]} -gt 0 ]]; then

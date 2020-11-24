@@ -16,7 +16,7 @@ docker run --rm -e SITE_NAME=example.com \
     -e SITE_ALIAS=www.example.com \
     -e SSL_ON=1 \
     -e ACME_PROVIDER=letsencrypt \
-    server:apache 
+    server:apache
 ```
 
 **Node balancer**
@@ -44,7 +44,7 @@ To route to php fpm server `docker exec staticserver appBalancer.sh add {php-fpm
 docker run --name djangostatic --rm \
     -e CONFIG_TYPE=pythonapp \
     --mount type=bind,source=/path/to/static/file,destination=/home/static \
-    --PATH_ALIASES /static=/home/static
+    --PATH_ALIASES /static=/home/static \
     server:apache
 
 docker exec -ti djangostatic appBalancer.sh add {django-server-ip}:{port}
