@@ -23,7 +23,7 @@ function docker_build() {
         arg=${line#INSTALL_ARG_}
         args+=(--build-arg "${arg}")
     done
-    DOCKER_BUILDKIT=1 docker build "${args[@]}" -t "${SERVICE}:${TAG}" "${DIR}" || exit $?
+    DOCKER_BUILDKIT=1 docker build "${args[@]}" -t "${NAME}" "${DIR}" || exit $?
     postbuildscript="${DIR}/postbuild.sh"
     if [[ (-f ${postbuildscript}) && (-x "${postbuildscript}") ]]; then
         ${postbuildscript}
@@ -77,7 +77,7 @@ if [[ -z "${FORCE_BUILD_IMAGE}" ]]; then
         done
     fi
     if [[ "${SERVICE_TYPE}" == "container" ]]; then
-        docker image inspect "${SERVICE}:${TAG}" >/dev/null 2>&1 || docker_build || exit $?
+        docker image inspect "${NAME}" >/dev/null 2>&1 || docker_build || exit $?
     fi
 else
     if [[ (-z "${DEPTH}") || ("${DEPTH}" -gt 1) ]]; then

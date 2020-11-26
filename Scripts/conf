@@ -1,5 +1,6 @@
 NAME=
 SUBNET=
+docker_user=bb526
 
 DEPENDS=
 CONTAINERS=

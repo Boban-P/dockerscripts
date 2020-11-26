@@ -1,76 +1,34 @@
 #!/bin/bash
 
-_cloudcompletion() {
-	local script cloud_dir
-    script="$(realpath "$(which cloudscript)")"
-    cloud_dir="$(realpath "$(dirname "${script}")/../")"
-    local dirs=("${cloud_dir}/Containers" "${cloud_dir}/Packages")
-    local words=()
-    local current=0
-    
-    # Bash completion recognize ":" as another argument
-    # need to join NAME:TAG
-    local skip_third=false
-    for index in ${!COMP_WORDS[*]}; do
-		if [[ ${index} -eq 2 && "${COMP_WORDS[2]}" == ":"* ]]; then
-			words[$((current-1))]="${words[$((current-1))]}${COMP_WORDS[2]}${COMP_WORDS[3]}"
-			skip_third=true
-		elif [[ ${index} -ne 3 || ! ${skip_third} ]]; then
-			words[current]="${COMP_WORDS[${index}]}"
-			((current++))
+_cloudscriptCompletion() {
+    local cloud_dir path file completion_file
+	if [[ (${COMP_CWORD} -eq 1) && "${COMP_WORDS[0]}" == "%%cloudscript%%" ]]; then
+		mapfile -t COMPREPLY<<<"$(compgen -o plusdirs -- "${COMP_WORDS[${COMP_CWORD}]}" )"
+		if [[ (${#COMPREPLY[@]} -eq 1) && (-n "${COMPREPLY[0]}") ]]; then
+			COMPREPLY[0]=${COMPREPLY[0]}/
+			mapfile -t values<<<"$(compgen -o plusdirs -- "${COMPREPLY[0]}")"
+			if [[ (${#values[@]} -ne 1) || (-n "${values[0]}") ]]; then
+				COMPREPLY+=("${values[@]}")
+			fi
 		fi
-    done
+		return
+	fi
+    cloud_dir="$(dirname "$(realpath "$(/usr/bin/which %%cloudscript%%)")")"
 
-    case ${#words[@]} in
-	2)
-	    # tag completion
-	    local search=${words[1]}
-	    COMPREPLY=()
-	    local name=${search%:*}
-	    if [[ "${name}" == "${search}" ]]; then
-			for index in ${!dirs[*]}; do
-				for dir in $(cd "${dirs[${index}]}" >/dev/null 2>&1 && ls -dD "${name}"*/ 2>/dev/null); do
-					COMPREPLY+=("${dir%/}")
-					last="${dirs[${index}]}/${dir}"
-				done
-			done
-			# if there is only one target, list versions
-			if [[ ${#COMPREPLY[@]} -eq 1 ]]; then
-				dir="${COMPREPLY[*]}"
-				COMPREPLY=()
-				for tag in $(cd "${last}" && ls -dD */ 2>/dev/null); do
-					# conf file is required
-					if [[ -f "${last}${tag}conf" ]]; then
-						COMPREPLY+=("${dir%/}:${tag%/}")
-					fi
-				done
-				# there are no versions.
-				if [[ ${#COMPREPLY[@]} -eq 0 ]]; then
-					COMPREPLY=("${dir}:")
-				fi
-            fi
-	    else
-			local tag=${search##*:}
-			for index in ${!dirs[*]}; do
-				for _tag in $(cd "${dirs[${index}]}/${name}" >/dev/null 2>&1 && ls -dD "${tag}"*/ 2>/dev/null); do
-					# conf file is required
-					if [[ -f "${dirs[${index}]}/${name}/${_tag}conf" ]]; then
-						COMPREPLY+=("${_tag%/}")
-					fi
-				done
-			done
-	    fi
-	    ;;
-	3)
-	    #command completion
-	    local tag path data
-	    tag=${words[1]}
-		IFS=: read -r -a path<<<"$(cloudscript "${tag}" script_path 2>/dev/null)${cloud_dir}/Scripts/function"
-		mapfile -t data<<<"$(/usr/bin/uniq <(/usr/bin/find "${path[@]}" -name "${words[2]}*" -maxdepth 1 -executable -type f -printf '%f\n' 2>/dev/null | /usr/bin/sort))"
-	    COMPREPLY=("${data[@]}")
-	    ;;
-    esac
+	if [[ ${COMP_CWORD} -eq 2 ]]; then
+		IFS=: read -r -a path<<<"$(%%cloudscript%% "${COMP_WORDS[1]}" script_path 2>/dev/null)${cloud_dir}/function"
+		mapfile -t COMPREPLY<<<"$(/usr/bin/uniq <(/usr/bin/find "${path[@]}" -name "${COMP_WORDS[2]}*" -maxdepth 1 -executable -type f -printf '%f\n' 2>/dev/null | /usr/bin/sort))"
+		return
+	fi
+
+	file="$(PATH="$(%%cloudscript%% "${COMP_WORDS[1]}" script_path 2>/dev/null))${cloud_dir}/function" /usr/bin/which "${COMP_WORDS[2]}")"
+	if [[ -n "${file}" ]]; then
+		completion_file="$(dirname "${file}")/completion/${COMP_WORDS[2]}"
+		if [[ (-f "${completion_file}") ]]; then
+			COMP_CWORD=$(( COMP_CWORD - 2))
+			COMP_WORDS=("${COMP_WORDS[@]:2}")
+			source "${completion_file}"
+		fi
+	fi
 }
-
-
-complete -F _cloudcompletion cloudscript
+complete -F _cloudscriptCompletion %%cloudscript%%

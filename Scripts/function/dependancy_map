@@ -44,7 +44,7 @@ existing=" ${args[*]} "
 new=()
 deps=()
 
-if [[ ! -z "${DEPENDS}" ]]; then
+if [[ -n "${DEPENDS}" ]]; then
     for item in ${DEPENDS}; do
 	if [[ "${existing}" != *" ${item} "* ]]; then
 	    deps+=("${item}")
@@ -53,7 +53,7 @@ if [[ ! -z "${DEPENDS}" ]]; then
 fi
 
 if [[ (-z "${DEPTH}") || (${DEPTH} -gt 1) ]]; then
-    if [[ ! -z "${PACKAGES}" ]]; then
+    if [[ -n "${PACKAGES}" ]]; then
         for item in ${PACKAGES}; do
 	    if [[ "${existing}" != *" ${item} "* ]]; then
 	        new+=("${item}")
@@ -61,7 +61,7 @@ if [[ (-z "${DEPTH}") || (${DEPTH} -gt 1) ]]; then
         done
     fi
 
-    if [[ ! -z "${CONTAINERS}" ]]; then
+    if [[ -n "${CONTAINERS}" ]]; then
         for item in ${CONTAINERS}; do
 	    if [[ "${existing}" != *" ${item} "* ]]; then
 	        new+=("${item}")
@@ -78,7 +78,7 @@ if [[ (-z "${DEPTH}") || (${DEPTH} -gt 1) ]]; then
         args+=(--depth $(( DEPTH - 1 )))
     fi
     for index in ${!new[*]}; do
-        tag=${new[${index}]}
+        tag="$(realpath -s "${DIR}/${new[${index}]}")"
         # recursive call to find dependancy
         found="$("${SCRIPT_PATH}" "${tag}" "$(basename "${0}")" "${existing}" "${args[@]}")"
         for item in ${found}; do
@@ -91,7 +91,6 @@ if [[ (-z "${DEPTH}") || (${DEPTH} -gt 1) ]]; then
     new=("${children[@]}" "${new[@]}")
 fi
 
-
 # got all packages and containers depend on this.
 # if asked for images we output images
 
@@ -100,7 +99,7 @@ if [[ -z "${DO_IMAGE}" ]]; then
 else
     existing=" ${deps[*]} "
     for index in ${!new[*]}; do
-        tag=${new[${index}]}
+        tag="$(realpath -s "${DIR}/${new[${index}]}")"
         # recursive call to find dependancy
         found="$("${SCRIPT_PATH}" "${tag}" "$(basename "${0}")" --imageonly)"
         for item in ${found}; do

@@ -22,10 +22,10 @@ for opt in "$@"; do
     esac
 done
 
-docker image inspect "${SERVICE}:${TAG}" >/dev/null 2>&1
+docker image inspect "${NAME}" >/dev/null 2>&1
 
 ret=$?
 
-$quiet || ( [[ $ret -ne 0 ]] && echo "${SERVICE}:${TAG} not exists" || echo "${SERVICE}:${TAG} exists" )
+$quiet || ( [[ $ret -ne 0 ]] && echo "${NAME} not exists" || echo "${NAME} exists" )
 
 exit $ret
