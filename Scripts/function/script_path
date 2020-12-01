@@ -22,9 +22,9 @@ if [[ -d ${SERVICE_DIR}/bin ]]; then
 fi
 
 if [[ -z ${1} ]]; then
-    packages=$(dependancy_map)
-    for package in $packages; do
-	paths="${paths}$("${SCRIPT_PATH}" "${package}" "$(basename "${0}")" dont)"
+    mapfile -t packages<<<"$(dependancy_map)"
+    for package in "${packages[@]}"; do
+	    [[ -n "${package}" ]] && paths="${paths}$("${SCRIPT_PATH}" "${package}" "$(basename "${0}")" dont 2>/dev/null)"
     done
 fi
 echo "${paths}"

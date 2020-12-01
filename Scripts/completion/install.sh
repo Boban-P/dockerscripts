@@ -44,6 +44,23 @@ uninstall() {
     rm -rf  /usr/share/cloudscript
     unlink "${bin_path}/${scriptName}"
     unlink "/etc/bash_completion.d/${scriptName}"
+    rm -f /etc/cloudscript.conf
 }
-uninstall
+
+uninstall 2>/dev/null
 install
+
+if [[ ! -d "${DIR}/../Packages" ]]; then
+    echo "Packages directory not found, not setting up ~/.cloudscript for user." >&2
+    exit
+fi
+
+package_path="$(realpath -s "${DIR}/../Packages")"
+filepath="$(realpath "${BASH_SOURCE[0]}")"
+
+cat >/etc/cloudscript.conf <<<"
+# copy this file to ~/.cloudscript
+# and make any changes as needed.
+include_dir = ${package_path}
+image_prefix = bb526
+"

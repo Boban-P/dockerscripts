@@ -1,14 +1,63 @@
 #!/bin/bash
 
+include_paths=()
+ESCAPED_HOME=$(printf '%s\n' "$HOME" | sed -e 's/[\/&]/\\&/g')
+if [[ (-n "${HOME}") && (-f "${HOME}/.cloudscript") ]]; then
+    conf_file="${HOME}/.cloudscript"
+elif [[ -f "/etc/cloudscript.conf" ]]; then
+    conf_file="/etc/cloudscript.conf"
+fi
+if [[ -n "${conf_file}" ]]; then
+	mapfile -t dirs<<<"$(grep -e '^\s*include_dir\s*=' "${conf_file}" | sed -e 's/.*=\s*\(.*\)$/\1/' -e 's/\s*$//' -e 's/^~/'${ESCAPED_HOME}'/')"
+	if [[ (${#dirs[@]} -ne 1) || (-n "${dirs[0]}") ]]; then
+		include_paths+=("${dirs[@]}")
+	fi
+fi
+[[ ${#include_paths[@]} -eq 0 ]] && include_paths=('.')
+
+_make_unique() {
+	local IFS=$'\n'
+	sort -u <<<"$*" | uniq
+}
+
 _cloudscriptCompletion() {
-    local cloud_dir path file completion_file
+    local cloud_dir path file completion_file search results escaped
 	if [[ (${COMP_CWORD} -eq 1) && "${COMP_WORDS[0]}" == "%%cloudscript%%" ]]; then
-		mapfile -t COMPREPLY<<<"$(compgen -o plusdirs -- "${COMP_WORDS[${COMP_CWORD}]}" )"
+		if [[ ${COMP_WORDS[${COMP_CWORD}]} != ?(.)?(.)/* ]]; then
+			for path in "${include_paths[@]}"; do
+				search="${path%/}/${COMP_WORDS[${COMP_CWORD}]}"
+				escaped=$(printf '%s\n' "${path%/}" | sed -e 's/[\/&]/\\&/g')
+				mapfile -t results<<<"$(compgen -o plusdirs -- "${search}" | sed 's/^'"${escaped}\/"'//')"
+				if [[ (${#results[@]} -ne 1) || (-n "${results[0]}") ]]; then
+					COMPREPLY+=("${results[@]}")
+				fi
+			done
+			mapfile -t COMPREPLY<<<"$(_make_unique "${COMPREPLY[@]}")"
+		else
+			mapfile -t COMPREPLY<<<"$(compgen -o plusdirs -- "${COMP_WORDS[${COMP_CWORD}]}")"
+		fi
 		if [[ (${#COMPREPLY[@]} -eq 1) && (-n "${COMPREPLY[0]}") ]]; then
-			COMPREPLY[0]=${COMPREPLY[0]}/
-			mapfile -t values<<<"$(compgen -o plusdirs -- "${COMPREPLY[0]}")"
-			if [[ (${#values[@]} -ne 1) || (-n "${values[0]}") ]]; then
-				COMPREPLY+=("${values[@]}")
+			if [[ ${COMP_WORDS[${COMP_CWORD}]} != ?(.)?(.)/* ]]; then
+				local add_noslash=""
+				for path in "${include_paths[@]}"; do
+					search="${path%/}/${COMPREPLY[0]}/"
+					escaped=$(printf '%s\n' "${path%/}" | sed -e 's/[\/&]/\\&/g')
+					mapfile -t results<<<"$(compgen -o plusdirs -- "${search}" | sed 's/^'"${escaped}\/"'//')"
+					if [[ (${#results[@]} -ne 1) || (-n "${results[0]}") ]]; then
+						COMPREPLY+=("${results[@]}")
+					fi
+					if [[ (-z "${add_noslash}") && (-f "${search}conf") ]]; then
+						add_noslash=yes
+					fi
+				done
+				[[ -z "${add_noslash}" ]] && COMPREPLY[0]="${COMPREPLY[0]}/"
+				mapfile -t COMPREPLY<<<"$(_make_unique "${COMPREPLY[@]}")"
+			else
+				mapfile -t values<<<"$(compgen -o plusdirs -- "${COMPREPLY[0]}/")"
+				[[ ! -f "${COMPREPLY[0]}/conf" ]] && COMPREPLY[0]="${COMPREPLY[0]}/"
+				if [[ (${#values[@]} -ne 1) || (-n "${values[0]}") ]]; then
+					COMPREPLY+=("${values[@]}")
+				fi
 			fi
 		fi
 		return

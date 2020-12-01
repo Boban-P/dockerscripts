@@ -14,33 +14,69 @@ load_help () {
 export SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
 export SCRIPT_DIR="$(dirname "${SCRIPT_PATH}")"
 
+include_paths=()
+if [[ (-n "${HOME}") && (-f "${HOME}/.cloudscript") ]]; then
+    conf_file="${HOME}/.cloudscript"
+elif [[ -f "/etc/cloudscript.conf" ]]; then
+    conf_file="/etc/cloudscript.conf"
+fi
+if [[ (-n "${conf_file}") ]]; then
+    ESCAPED_HOME=$(printf '%s\n' "$HOME" | sed -e 's/[\/&]/\\&/g')
+    mapfile -t dirs<<<"$(grep -e '^\s*include_dir\s*=' "${conf_file}" | sed -e 's/.*=\s*\(.*\)$/\1/' -e 's/\s*$//' -e 's/^~/'${ESCAPED_HOME}'/')"
+    if [[ (${#dirs[@]} -ne 1) || (-n ${dirs[0]}) ]]; then
+        include_paths+=("${dirs[@]}")
+    fi
+    image_prefix="$(grep -e '^\s*image_prefix\s*=' "${conf_file}" | sed 's/.*=\s*\(.*\)$/\1/'| sed 's/\s*$//' | tail -1)"
+fi
+[[ ${#include_paths[@]} -eq 0 ]] && include_paths=(".")
 # TAG="$1"
-SERVICE_DIR="${1%/}"
+
+if [[ "$1" != ?(.)?(.)/* ]]; then
+    for dir in "${include_paths[@]}"; do
+        SERVICE_DIR="${dir%/}/${1%/}"
+        if [[ -d "${SERVICE_DIR}" ]]; then
+            break;
+        fi
+    done
+else
+    SERVICE_DIR=$1
+fi
 shift
 
-if [[ ! -d "${SERVICE_DIR}" ]]; then
-    echo "SERVICE not found while checking for directory ${SERVICE_DIR}" >&2
+export DIR="$(realpath -s ${SERVICE_DIR})"
+
+if [[ ! -d "${DIR}" ]]; then
+    echo "SERVICE directory ${DIR} not found while checking for directory ${SERVICE_DIR}" >&2
     exit 1
 fi
 
-export ASSET="${SERVICE_DIR}/Assets"
-export DATA="${SERVICE_DIR}/Data"
+export ASSET="${DIR}/Assets"
+export DATA="${DIR}/Data"
 
-export DIR="${SERVICE_DIR}"
 export SERVICE_DIR
 
-if [[ -f "${DIR}/conf" ]]; then
-    _conf_file="${DIR}/conf"
-    #unset all configuration variable
-    source "${SCRIPT_DIR}/conf"
+#unset all configuration variable
+source "${SCRIPT_DIR}/conf"
+_conf_file="${DIR}/conf"
+if [[ -f "${_conf_file}" ]]; then
     # export all defined variables in the configuration file.
     # cd "${DIR}"
     set -a
     source "${_conf_file}"
     set +a
-else
+fi
+
+case "${1}" in
+    dependancy_map|script_path)
+        _cmd_file=${SCRIPT_DIR}/function/${1}
+        PATH="${SCRIPT_DIR}/function:${PATH}" ${_cmd_file} "${@:2}"
+        exit $?
+        ;;
+esac
+
+if [[ ! -f "${_conf_file}" ]]; then
     echo "CONFIGURATION FILE not found in ${SERVICE_DIR}" >&2
-    exit 1;
+    exit 1
 fi
 
 if [[ -z "${NAME}" ]]; then
@@ -48,12 +84,15 @@ if [[ -z "${NAME}" ]]; then
     exit 2
 fi
 
-[[ "${docker_user}" != */ ]] && NAME="${dockeruser}/${NAME}"
-NAME=${NAME#/}
+if [[ -n "${image_prefix}" ]]; then
+    docker_user="${image_prefix}"
+fi
 
 if [[ -f "${DIR}/Dockerfile" ]]; then
     export SERVICE_TYPE="container"
 fi
+
+NAME=${docker_user%/}/${NAME}
 
 # If an argument is set and it is the executable, remove argument and set executable.
 if [[ -n "${1}" ]]; then
@@ -61,20 +100,12 @@ if [[ -n "${1}" ]]; then
     if [[ "${1}" == '--' ]]; then
         shift 1
     else
-        case "${1}" in
-            dependancy_map|script_path)
-                _cmd_file=${SCRIPT_DIR}/function/${1}
-                PATH="${SCRIPT_DIR}/function:${PATH}" ${_cmd_file} "${@:2}"
-                exit $?
-                ;;
-            *)
-                path="$(PATH="${SCRIPT_DIR}/function:${PATH}" "${SCRIPT_DIR}/function/script_path")"
-                candidate="$(PATH="${SCRIPT_DIR}/function:${path}" /usr/bin/which "${1}")"
-                if [[ -n "${candidate}" ]]; then
-                    _cmd_file="${candidate}"
-                    shift 1
-                fi
-        esac
+        path="$(PATH="${SCRIPT_DIR}/function:${PATH}" "${SCRIPT_DIR}/function/script_path")"
+        candidate="$(PATH="${SCRIPT_DIR}/function:${path}" /usr/bin/which "${1}")"
+        if [[ -n "${candidate}" ]]; then
+            _cmd_file="${candidate}"
+            shift 1
+        fi
     fi
 fi
 

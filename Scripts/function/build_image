@@ -69,11 +69,15 @@ fi
 if [[ -z "${FORCE_BUILD_IMAGE}" ]]; then
     if [[ (-z "${DEPTH}") || ("${DEPTH}" -gt 1) ]]; then
     # if [[ "${DO_RECURSE:-0}" == "1" ]]; then
-        for image in $(dependancy_map --image "${args[@]}"); do
-            docker image inspect "${image}" >/dev/null 2>&1 || docker pull "$image" || exit 2
+        mapfile -t images<<<"$(dependancy_map --image "${args[@]}")"
+        for image in "${images[@]}"; do
+            [[ -n "${image}" ]] && (docker image inspect "${image}" >/dev/null 2>&1 || docker pull "$image" || exit 2)
         done
-        for image in $(dependancy_map "${args[@]}"); do
-            docker image inspect "${image}" >/dev/null 2>&1 || "${SCRIPT_PATH}" "${image}" build_image --no-recurse || exit $?
+        mapfile -t packages<<<"$(dependancy_map "${args[@]}")"
+        for package in "${packages[@]}"; do
+            if [[ (-n "${package}") && (-f "${package}/conf") ]]; then
+                "${SCRIPT_PATH}" "${package}" build_image --no-recurse || exit $?
+            fi
         done
     fi
     if [[ "${SERVICE_TYPE}" == "container" ]]; then
@@ -82,11 +86,15 @@ if [[ -z "${FORCE_BUILD_IMAGE}" ]]; then
 else
     if [[ (-z "${DEPTH}") || ("${DEPTH}" -gt 1) ]]; then
     # if [[ "${DO_RECURSE:-0}" == "1" ]]; then
-        for image in $(dependancy_map --image "${args[@]}"); do
-            docker pull "${image}" || exit 2
+        mapfile -t images<<<"$(dependancy_map --image "${args[@]}")"
+        for image in "${images[@]}"; do
+            [[ -n "${image}" ]] && docker image inspect "${image}" >/dev/null 2>&1 || docker pull "${image}" || exit 2
         done
-        for image in $(dependancy_map "${args[@]}"); do
-            "${SCRIPT_PATH}" "${image}" build_image --force --no-recurse || exit $?
+        mapfile -t packages<<<"$(dependancy_map "${args[@]}")"
+        for package in "${packages[@]}"; do
+            if [[ (-n "${package}") && (-f "${package}/conf") ]]; then
+                "${SCRIPT_PATH}" "${package}" build_image --force --no-recurse || exit $?
+            fi
         done
     fi
     if [[ "${SERVICE_TYPE}" == "container" ]]; then

@@ -46,26 +46,22 @@ deps=()
 
 if [[ -n "${DEPENDS}" ]]; then
     for item in ${DEPENDS}; do
-	if [[ "${existing}" != *" ${item} "* ]]; then
-	    deps+=("${item}")
-	fi
+    if [[ "${existing}" != *" ${item} "* ]]; then
+        deps+=("${item}")
+    fi
     done
 fi
 
 if [[ (-z "${DEPTH}") || (${DEPTH} -gt 1) ]]; then
     if [[ -n "${PACKAGES}" ]]; then
         for item in ${PACKAGES}; do
-	    if [[ "${existing}" != *" ${item} "* ]]; then
-	        new+=("${item}")
-	    fi
-        done
-    fi
-
-    if [[ -n "${CONTAINERS}" ]]; then
-        for item in ${CONTAINERS}; do
-	    if [[ "${existing}" != *" ${item} "* ]]; then
-	        new+=("${item}")
-	    fi
+        if [[ "${existing}" != *" ${item} "* ]]; then
+            if [[ "${item}" = /* ]]; then
+                new+=("${item}")
+            else
+                new+=("$(realpath -s "${DIR}/${item}")")
+            fi
+        fi
         done
     fi
 
@@ -77,15 +73,14 @@ if [[ (-z "${DEPTH}") || (${DEPTH} -gt 1) ]]; then
     else
         args+=(--depth $(( DEPTH - 1 )))
     fi
-    for index in ${!new[*]}; do
-        tag="$(realpath -s "${DIR}/${new[${index}]}")"
+    for tag in "${new[@]}"; do
         # recursive call to find dependancy
-        found="$("${SCRIPT_PATH}" "${tag}" "$(basename "${0}")" "${existing}" "${args[@]}")"
-        for item in ${found}; do
-	    if [[ "${existing}" != *" ${item} "* ]]; then
-	        children+=("$item")
-	        existing="${existing%\ } ${item}"
-	    fi
+        mapfile -t found<<<"$("${SCRIPT_PATH}" "${tag}" "$(basename "${0}")" "${args[@]}" "${new[@]}" "${children[@]}" 2>/dev/null)"
+        for item in "${found[@]}"; do
+        if [[ (-n "${item}") && ("${existing}" != *" ${item} "*) ]]; then
+            children+=("$item")
+            existing="${existing%\ } ${item}"
+        fi
         done
     done
     new=("${children[@]}" "${new[@]}")
@@ -95,18 +90,18 @@ fi
 # if asked for images we output images
 
 if [[ -z "${DO_IMAGE}" ]]; then
-    echo "${new[@]}"
+    printf "%s\n" "${new[@]}"
 else
     existing=" ${deps[*]} "
-    for index in ${!new[*]}; do
-        tag="$(realpath -s "${DIR}/${new[${index}]}")"
+    for tag in "${new[@]}"; do
         # recursive call to find dependancy
-        found="$("${SCRIPT_PATH}" "${tag}" "$(basename "${0}")" --imageonly)"
-        for item in ${found}; do
-	    if [[ "${existing}" != *"${item}"* ]]; then
-	        existing="${existing%\ } ${item}"
-	    fi
+        mapfile -t found<<<"$("${SCRIPT_PATH}" "${tag}" "$(basename "${0}")" --imageonly 2>/dev/null)"
+        for item in "${found[@]}"; do
+        if [[ (-n "${item}") && ("${existing}" != *"${item}"*) ]]; then
+            deps+=("${item}")
+            existing="${existing%\ } ${item}"
+        fi
         done
     done
-    echo "${existing}"
+    printf "%s\n" "${deps[@]}"
 fi
