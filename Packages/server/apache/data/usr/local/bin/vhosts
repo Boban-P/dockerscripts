@@ -1,0 +1,138 @@
+#!/bin/bash
+
+LISTEN_PORT=${LISTEN_PORT:-80}
+LISTEN_SSLPORT=${LISTEN_SSLPORT:-443}
+SITE_NAME=${SITE_NAME:-localhost}
+# SITE_ALIAS=
+SITE_ADMIN=${SITE_ADMIN:-"webmaster@${SITE_NAME}"}
+SSL_ON=${SSL_ON:-0}
+SITE_LOG_LEVEL=${SITE_LOG_LEVEL:-warn}
+SSL_ONLY=${SSL_ONLY:-0}
+# TRUSTED_PROXY=""
+# Set to one of: production | staging
+# ACME_ENABLE=0 \
+# ACME_PROVIDER=letsencrypt|letsencrypt-staging(default)|https://url.to.certificat/provider/path
+if [[ -n "${ACME_PROVIDER}" ]];then
+    ACME_ENABLE=1
+fi
+
+# VirtualHost skeleton
+
+if [[ -n "${SITE_ALIAS}" ]]; then
+    SITE_ALIAS="ServerAlias ${SITE_ALIAS}"
+else
+    SITE_ALIAS='# ServerAlias'
+fi
+
+locationAliases=()
+dirpaths=()
+if [[ -n "${PATH_ALIASES}" ]]; then
+    IFS=, read -r -a aliases<<<"${PATH_ALIASES}"
+    for alias in "${aliases[@]}"; do
+        IFS="=" read -r -a paths<<<"${alias}"
+        if [[ ${#paths[@]} -eq 2 ]]; then
+            locationAliases+=("    Alias ${paths[0]} ${paths[1]}")
+            dirpaths+=("    <DIRECTORY ${paths[1]}>
+        Require all granted
+    </DIRECTORY>")
+        fi
+    done
+fi
+
+VHOST_CONF="    ServerName ${SITE_NAME}
+    ${SITE_ALIAS}
+    ServerAdmin ${SITE_ADMIN}
+$(printf '%s\n' "${locationAliases[@]}")
+${DOCUMENT_ROOT}
+$(printf '%s\n' "${dirpaths[@]}")
+${BALANCER}
+    LogLevel ${SITE_LOG_LEVEL}
+    ErrorLog \${APACHE_LOG_DIR}/error.log
+    CustomLog \${APACHE_LOG_DIR}/access.log combined"
+
+hostfile="
+<VirtualHost *:${LISTEN_PORT}>
+${VHOST_CONF}
+</VirtualHost>
+"
+
+if [[ "${SSL_ON:-0}" != "0" ]]; then
+
+    if [[ -n "${ACME_ENABLE//0/}" ]]; then
+        case "${ACME_PROVIDER:-letsencrypt-staging}" in
+            letsencrypt|default)
+                ;;
+            letsencrypt-staging)
+                CERTIFICATE_AUTHORITY="MDCertificateAuthority https://acme-staging-v02.api.letsencrypt.org/directory"
+                ;;
+            *)
+                CERTIFICATE_AUTHORITY="MDCertificateAuthority ${ACME_PROVIDER}"
+                ;;
+        esac
+        ACME_CONF="ServerAdmin ${SITE_ADMIN}
+MDCertificateAgreement accepted
+MDomain ${SITE_NAME}
+MDPrivateKeys RSA 4096
+${CERTIFICATE_AUTHORITY:-"# "}
+MDStoreDir /etc/apache2/md
+
+## Turn on OCSP Stapling ##
+SSLUseStapling On
+SSLStaplingCache \"shmcb:logs/ssl_stapling\"
+
+## md status
+<Location \"/md-status\">
+    SetHandler md-status
+</Location>
+"
+        SSLEngine_CONF="       SSLEngine on"
+    else
+        if [[ (! -f "/etc/apache2/ssl/${SITE_NAME}.pem") || (! -f "/etc/apache2/ssl/${SITE_NAME}.key") ]];then
+            mkdir -p /etc/apache2/ssl
+            cp /etc/ssl/certs/ssl-cert-snakeoil.pem /etc/apache2/ssl/"${SITE_NAME}.pem"
+            cp /etc/ssl/private/ssl-cert-snakeoil.key /etc/apache2/ssl/"${SITE_NAME}.key"
+        fi
+        SSLEngine_CONF="
+     SSLEngine on
+     SSLCertificateFile	/etc/apache2/ssl/${SITE_NAME}.pem
+     SSLCertificateKeyFile   /etc/apache2/ssl/${SITE_NAME}.key
+       "
+    fi
+    if [[ "${SSL_ONLY:-0}" != "0" ]]; then
+        hostfile="
+<VirtualHost *:${LISTEN_PORT}>
+    ServerName ${SITE_NAME}
+    ${SITE_ALIAS}
+    ServerAdmin ${SITE_ADMIN}
+    RequestHeader unset X-FORWARDED-HTTPS
+    Redirect permanent / https://${SITE_NAME}/
+</VirtualHost>
+"
+    fi
+
+    hostfile="${ACME_CONF}${hostfile}
+<VirtualHost *:${LISTEN_SSLPORT}>
+${VHOST_CONF}
+RequestHeader set X-FORWARDED-HTTPS yes
+${SSLEngine_CONF}
+    <FilesMatch \"\\.(cgi|shtml|phtml|php)$\">
+        SSLOptions +StdEnvVars
+    </FilesMatch>
+</VirtualHost>
+"
+fi
+
+
+# Do for ssl.
+
+
+# Add app balancer node
+if [[ -n "${APP_BALANCER_URL}" ]];then
+    hostfile=$(sed 's%#APPBALANCER\(.*\)\(BalancerMember "[a-z]\+://\)\(BALANCER_URL\)\(.*\)%\1\2'"${APP_BALANCER_URL}"'\4\n#APPBALANCER\1\2\3\4%' <<< "${hostfile}")
+fi
+
+if [[ -n "${CHILD_BALANCER_URL}" ]]; then
+    hostfile=$(sed 's%#CHILDBALANCER\(.*\)\(BalancerMember "http://\)\(BALANCER_URL\)\(.*\)%\1\2'"${CHILD_BALANCER_URL}"'\4\n#CHILDBALANCER\1\2\3\4%' <<< "${hostfile}")
+fi
+
+cat <<< "${hostfile}" >/etc/apache2/sites-enabled/default.conf

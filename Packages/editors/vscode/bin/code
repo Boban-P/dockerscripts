@@ -1,0 +1,49 @@
+#!/bin/bash
+
+if [[ (! -z "${1}") && ("${1}" != "-"*) && (-d "${1}") ]]; then
+    dir="$(realpath -s "${1}")"
+    shift 1
+else
+    dir="$(pwd)"
+fi
+
+dir_code="$(md5sum <<<"${dir}" | cut -d ' ' -f 1)"
+name="vscode-${dir_code}"
+option="-ti"
+
+source_dir=/home/developer/${dir_code}
+config_dir=${DATA}/
+config_dir=/home/developer/.config/Code
+
+args=(code -n -w ${source_dir})
+options=(-d)
+image="bb526/vscode"
+home_dir="${DATA}/home"
+config_dir="${home_dir}/.config/${dir_code}"
+for line in $(env | grep -e '^code_'); do
+    export ${line#code_}
+done
+
+
+if [[ ! -d "${config_dir}" ]]; then
+    mkdir -p "${config_dir}"
+fi
+
+if [[ $# -eq 0 ]]; then
+    set -- "${args[@]}"
+    option="${options[@]}"
+fi
+
+export SITE_PATH_home=type=bind,source="${home_dir}",destination=/home/developer
+export SITE_PATH_project_dir=type=bind,source="${dir}",destination="${source_dir}"
+export SITE_PATH_config_dir=type=bind,source="${config_dir}",destination="/home/developer/.config/Code"
+export DOCKER_OPTION_working_dir="-w=${source_dir}"
+
+case "${1}" in
+    home)
+        echo "${home_dir}"
+        ;;
+    *)
+        cmd "${name}" "${image}" ${option} -- ${option} -- "$@"
+        ;;
+esac

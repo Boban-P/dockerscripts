@@ -1,0 +1,184 @@
+#!/bin/bash
+
+# Application to manage database server
+# Usage: $0 start [[host-ip:]port]|stop
+#      : $0 startmaster|stopmaster
+#      : $0 startslave id masterip|stopslave
+#      : $0 addSlave slaveip
+
+show_help() {
+    echo "Usage $0 [options] command [args]"
+    echo "Options:
+    --help                  : show this help and exit
+    --container-name  name  : name of the container
+    --publiship ip          : published ip address of server
+    --port port             : published port number of server
+    --replicationid  [int]  : replication server id
+                              0 => standalone, no replication(default)
+                              1 => replication master
+                              2-~ => slave id 
+    --master host:port      : master host and port for slave
+
+Command:
+    start                   : Start server
+    stop                    : Stop server
+    url                     : server ip
+    *  args                 : command to run in server
+    "
+}
+
+args=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --container-name)
+            DB_CONTANIER="$2"
+            shift
+            ;;
+        --publiship)
+            publishIp="$2"
+            shift
+            ;;
+        --port)
+            port="$2"
+            shift
+            ;;
+        --replicationid)
+            DB_REPLICATION_SERVER_ID="$2"
+            shift
+            ;;
+        --master)
+            DB_MASTER_SERVER="${2%:*}"
+            DB_MASTER_PORT="${2##*:}"
+            if [[ "${DB_MASTER_SERVER}" == "${DB_MASTER_PORT}" ]]; then
+                DB_MASTER_PORT=""
+            fi
+            shift
+            ;;
+        start|stop|url)
+            args+=("$1")
+            move=1
+            ;;
+        --help)
+            show_help
+            exit 0
+            ;;
+        *)
+        # for custom command don't do anything.
+            if [[ -z "${move}" ]]; then
+                args+=("$@")
+                break;
+            else
+                args+=("$1")
+            fi
+            ;;
+    esac
+    shift
+done
+set -- "${args[@]}"
+
+##################
+# DEFAULT VALUES #
+##################
+DB_IMAGE="${DB_IMAGE:-"bb526/server:mariadb"}"
+# DB_CONTAINER  is required.
+[[ -z "${DB_CONTAINER}" ]] &&  echo "container name not provided" >&2 && exit 2
+
+# Directory in which the database is stored.
+DB_DATA_DIR="${DB_DATA_DIR:-"${ASSET}/mysql"}"
+
+# Directory in which master backup and status is stored.
+# as well as slaves use this data to initialize.
+DB_BACKUP_DIR="${DB_BACKUP_DIR:-"${ASSET}/sqlbackup"}"
+
+if [[ -n "${DB_REPLICATION_SERVER_ID//0/}" ]]; then
+    [[ -z "${DB_REPLICATION_USER}" ]] && echo "replication slave user is not found in conf" >&2 && exit 3
+    [[ -z "${DB_REPLICATION_PASSWORD}" ]] && echo "replication slave password not found in conf" >&2 && exit 4
+    if [[ "${DB_REPLICATION_SERVER_ID}" -ge 1 ]]; then
+        [[ -z "${DB_MASTER_SERVER}" ]] && echo "replication server needs master which not sepcified" >&2 && exit 5
+        DB_DATA_DIR="${DB_DATA_DIR%/}/slave/${DB_REPLICATION_SERVER_ID}"
+    else
+        DB_DATA_DIR="${DB_DATA_DIR%/}/master"
+    fi
+else
+    DB_DATA_DIR="${DB_DATA_DIR%/}/standalone"
+fi
+
+exists=$(docker ps -q -f 'name=^'"${DB_CONTAINER}"'$')
+start="$(dockerinfo startup_command "${DB_IMAGE}")"
+
+
+if [[ -z "${exists}" ]]; then
+
+    if [[ ! -d "${DB_DATA_DIR}" ]]; then
+        mkdir -p "${DB_DATA_DIR}"
+    fi
+    export SITE_PATH_data_dir="type=bind,source=${DB_DATA_DIR},destination=/var/lib/mysql"
+
+    if [[ -n "${DB_REPLICATION_SERVER_ID//0/}" ]]; then
+        BACKUP_SQL_DIR="$(dockerinfo variable "${DB_IMAGE}" BACKUP_SQL_DIR)"
+        export DOCKER_OPTION_server_id="-e=REPLICATION_SERVER_ID=${DB_REPLICATION_SERVER_ID}"
+        export DOCKER_OPTION_repl_user="-e=REPLICATION_USER=${DB_REPLICATION_USER}"
+        export DOCKER_OPTION_repl_pass="-e=REPLICATION_PASSWORD=${DB_REPLICATION_PASSWORD}"
+        if [[ -n "${BACKUP_SQL_DIR}" ]]; then
+            export SITE_PATH_backup_dir="type=bind,source=${DB_BACKUP_DIR},destination=${BACKUP_SQL_DIR}"
+            if [[ ! -d "${DB_BACKUP_DIR}" ]]; then
+                mkdir -p "${DB_BACKUP_DR}"
+            fi
+        fi
+
+        mapfile -t dbs<<<"$(env | gerp '^DB_DATABASE_STATUS_')"
+        i=0
+        for db in "${dbs[@]}"; do
+            [[ -n "${db}" ]] && export "DOCKER_OPTION_db_$i=-e=REPLICATION_DB_${db#DB_DATABASE-STATUS_}"
+            ((i++))
+        done
+        if [[ "${DB_REPLICATION_SERVER_ID}" -ge 1 ]]; then
+            export DOCKER_OPTION_master="-e=MASTER_SERVER=${DB_MASTER_SERVER}"
+            [[ -n "${DB_MASTER_PORT}" ]] && export DOCKER_OPTION_masterport="-e=MASTER_PORT=${DB_MASTER_PORT}"
+        fi
+    fi
+
+fi
+
+if [[ -z "${DB_PORT}" ]]; then
+    DB_PORT="$(dockerinfo variable "${DB_IMAGE}" LISTEN_PORT)"
+else
+    export DOCKER_OPTION_listen_port="-e=LISTEN_PORT=${DB_PORT}"
+fi
+
+case "$1" in
+    start)
+        if [[ -z "${exists}" ]]; then
+            [[ -n "${publishIp}" ]] && export DOCKER_OPTION_publish="--publish=${publishIp}:${port}:${DB_PORT}"
+
+            cmd "${DB_CONTAINER}" "${DB_IMAGE}" -d -- -- "${start}"
+            
+            # Create database and user if not already exists.
+            if [[ (! -d "${DB_DATA_DIR}/${DB_NAME}") && ("${DB_REPLICATION_SERVER_ID:-0}" = [0,1] ) ]]; then
+                # wait for  /var/run/mysqld/mysqld.sock to appear
+                docker exec "${DB_CONTAINER}" ls /var/run/docker_initialized >/dev/null 2>&1 && docker exec "${DB_CONTAINER}" ls /var/run/mysqld/mysqld.sock >/dev/null 2>&1
+                while [[ $? -ne 0 ]]; do
+                    sleep 1
+                    docker exec "${DB_CONTAINER}" ls /var/run/docker_initialized >/dev/null 2>&1 && docker exec "${DB_CONTAINER}" ls /var/run/mysqld/mysqld.sock >/dev/null 2>&1
+                done
+
+                # Create database
+                [[ -n "${DB_NAME}" ]] && docker exec "${DB_CONTAINER}" /createdb "${DB_NAME}"
+                if [[ (-n "${DB_USER}") && (-n "${DB_PASSWORD}") ]]; then
+                    docker exec "${DB_CONTAINER}" /createUser "${DB_USER}" '%' "${DB_PASSWORD}"
+                    [[ -n "${DB_NAME}" ]] && docker exec "${DB_CONTAINER}" /execute 'GRANT ALL ON `'"${DB_NAME}"'`.*'" TO "'`'"${DB_USER}"'`'
+                fi
+            fi
+        fi
+        ;;
+    stop)
+        test -n "${exists}" && docker exec "${DB_CONTAINER}" /etc/init.d/mysql stop
+        echo ""
+        ;;
+    url)
+        docker port "${DB_CONTAINER}" "${DB_PORT}"
+        ;;
+    *)
+        cmd "${DB_CONTAINER}" "${DB_IMAGE}" -ti -- -ti -- "$@"
+        ;;
+esac

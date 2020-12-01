@@ -1,0 +1,211 @@
+#!/bin/bash
+
+# Web server
+# Usage: $0 start --app app-server-ip:port --publish port-forward-ip --port hostport --trust start | stop | appadd  ip:port | apprm ip:port | *
+# Usage: $0 start app-server-ip:port [[port-forward-ip:]hostport] | stop | phpAdd ip:port
+#        app-server-ip : ip address or host name of application server, additional
+#                        application servers can be added by appAdd command
+#        port-forward-ip: ip address of host system from which incomming traffic will be
+#                        forwarded to containers listening port.
+#                        if omitted all ips is used.
+
+show_help() {
+    echo "Usage: $0 [options] command [commandargs]"
+    echo "options:
+    --help           : show this help and exit.
+    -a | --app       : backend application server ip:port or hostname:port
+    -i | --publiship : public ip address of server to publish container port
+    -p | --port      : port number of publiship, if not sepecified available
+                       port is used
+    -t | --trust     : ip, the trusted balancer public ip. 
+
+command:
+    start            : start new server
+    stop             : stop server
+    stopall          : stop all instance of application
+    update           : update source document root
+    url  [id]        : 
+    appadd id ip:port: add backend application to server with id
+    apprm id ip:port : remove backend application to server with id
+    [id=0] *         : custom command to execute in server with id
+    "
+}
+
+args=()
+nodes=()
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --app|-a)
+            nodes+=("$2")
+            shift
+            ;;
+        --publiship|-i)
+            publishIp="$2"
+            shift
+            ;;
+        --port|-p)
+            http_port="$2"
+            shift
+            ;;
+        --trust|-t)
+            trust="$2"
+            shift
+            ;;
+        start|stop|stopall|update|url|appadd|apprm)
+            args+=("$1")
+            move=1
+            ;;
+        --help)
+            show_help
+            exit 0
+            ;;
+        *)
+        # for custom command don't do anything.
+            if [[ -z "${move}" ]]; then
+                args+=("$@")
+                break;
+            else
+                args+=("$1")
+            fi
+        ;;
+    esac
+    shift
+done
+set -- "${args[@]}"
+
+
+WEB_IMAGE="${WEB_IMAGE:-"bb526/server:apache"}"
+WEB_ROOT="${WEB_ROOT:-"${DATA}/www"}"
+DOCUMENT_ROOT="${DOCUMENT_ROOT:-"/home/www"}"
+WEB_LOG_LEVEL="${WEB_LOG_LEVEL:-"warn"}"
+WEB_LOG_PATH="${WEB_LOG_PATH:-"${DATA}/Webserver"}"
+WEB_REPO_BRANCH="${WEB_REPO_BRANCH:-"development"}"
+
+start="$(dockerinfo startup_command "${WEB_IMAGE}")"
+mapfile -t exists<<<"$(docker ps -f 'name=^'"${WEB_CONTAINER}"'\d*$' -q)"
+
+if [[ (${#exists[@]} -eq 1) && (-z "${exists[0]}") ]]; then
+    exists=()
+fi
+
+# get exposed port
+if [[ -z "${WEB_LISTEN_PORT}" ]]; then
+    WEB_LISTEN_PORT=$(dockerinfo variable "${WEB_IMAGE}" LISTEN_PORT)
+    WEB_LISTEN_PORT=${WEB_LISTEN_PORT:-80}
+else
+    export DOCKER_OPTION_listen_port="-e=LISTEN_PORT=${WEB_LISTEN_PORT}"
+fi
+
+if [[ (${#exists[@]} -eq 0) || ("${1}" = "start") ]]; then
+
+    # create document root if it do not exits.
+    if [[ ! -d "${WEB_ROOT}" ]]; then
+        mkdir -p "${WEB_ROOT}"
+        test -n "${WEB_DOCUMENT_REPO}" && (git clone --depth 1 -b "${WEB_REPO_BRANCH}" "${WEB_DOCUMENT_REPO}" "${WEB_ROOT}" || rm -rf "${WEB_ROOT}")
+    fi
+
+    if [[ -n "${publishIp}" ]]; then
+        export DOCKER_OPTION_bind_port="--publish=${publishIp}:${http_port}:${WEB_LISTEN_PORT}"
+    fi
+
+    export SITE_PATH_web_root=type=bind,source="${WEB_ROOT}",destination="${DOCUMENT_ROOT}"
+    export DOCKER_OPTION_document_root='-e=DOCUMENT_ROOT='"${DOCUMENT_ROOT}"
+    export DOCKER_OPTION_site_name="-e=SITE_NAME=${SITE_NAME}"
+    export DOCKER_OPTION_site_alias='-e=SITE_ALIAS='"${SITE_ALIAS}"
+    if [[ -n "${WEB_LOG_LEVEL}" ]]; then
+        export DOCKER_OPTION_site_log_level="-e=SITE_LOG_LEVEL=${WEB_LOG_LEVEL}"
+    fi
+    # mounting assets as readonly
+    if [[ (-n ${APP_PRIVATE_ROOT}) && (-n ${DOCUMENT_ROOT}) ]]; then
+        dirs=(${APP_DOCUMENT_ASSETS})
+        for dir in "${dirs[@]}"; do
+            # Mounting APP_PRIVATE_ROOT/DIR TO DOCUMENT_ROOT/DIR
+            export "SITE_PATH_$dir=type=bind,source='${APP_PRIVATE_ROOT%/}/${dir}',destination='${DOCUMENT_ROOT%/}/${dir}',readonly"
+        done
+    fi
+
+    count=${#exists[@]}
+    if [[ -n "${WEB_LOG_PATH}" ]]; then
+        logpath="${WEB_LOG_PATH%/}/${count}"
+        export SITE_PATH_logfile="type=bind,source=${logpath},destination=/var/log/apache2"
+        if [[ ! -d "${logpath}" ]]; then
+            mkdir -p "${logpath}"
+        fi
+    fi
+
+    if [[ -n "${APP_ENVIRONMENT}" ]]; then
+        export DOCKER_OPTION_app_env="-e=APP_ENVIRONMENT=${APP_ENVIRONMENT}"
+    fi
+
+    if [[ -n "${PATH_ALIASES}" ]]; then
+        export DOCKER_OPTION_path_alias="-e=PATH_ALIASES=${PATH_ALIASES}"
+    fi
+
+    if [[ -n "${WEB_CONFIG_TYPE}" ]]; then
+        export DOCKER_OPTION_app_type="-e=CONFIG_TYPE=${WEB_CONFIG_TYPE}"
+    fi
+fi
+
+case "$1" in
+    start)
+        container="${WEB_CONTAINER}${#exists[@]}"
+        # argument count 2
+        if [[ -n "${trust}" ]]; then
+            export DOCKER_OPTION_proxy_env="-e=TRUSTED_PROXY=${trust}"
+        fi
+        cmd "${container}" "${WEB_IMAGE}" -d --  -- "${start}"
+        while [[ $? -eq 0 ]]; do
+            sleep 1
+            docker exec "${container}" bash -c '[[ -f /etc/apache2/sites-enabled/default.conf ]] && exit 1 || exit 0 '
+        done
+        for node in "${nodes[@]}"; do
+            docker exec "${container}" appBalancer.sh add "${node}"
+        done
+        ;;
+    stop)
+        if [[ ${#exists[@]} -gt 0 ]]; then
+            container="${WEB_CONTAINER}$(( ${#exists[@]} - 1))"
+            docker exec "${container}" apache2ctl stop
+        fi
+        ;;
+    stopall)
+        count=${#exists[@]}
+        while [[ ${count} -gt 0 ]]; do
+            container="${WEB_CONTAINER}$(( --count ))"
+            docker exec "${container}" apache2ctl stop
+        done
+        ;;
+    update)
+        if [[ -d "${WEB_ROOT}/.git" ]]; then
+            test -n "${WEB_DOCUMENT_REPO}" && git -C "${WEB_ROOT}" pull origin "${WEB_REPO_BRANCH}" >/dev/null
+        else
+            test -n "${WEB_DOCUMENT_REPO}" && (git clone --depth 1 -b "${WEB_REPO_BRANCH}" "${WEB_DOCUMENT_REPO}" "${WEB_ROOT}" || rm -rf "${WEB_ROOT}")
+        fi
+        ;;
+    appadd)
+        if [[ $# -lt 3 ]]; then
+            echo "server id and application server url required"
+            exit;
+        fi
+        docker exec "${WEB_CONTAINER}${2}" appBalancer.sh add "${3}"
+        ;;
+    apprm)
+        if [[ $# -lt 2 ]]; then
+            echo "server id and application url required"
+            exit;
+        fi
+        docker exec "${WEB_CONTAINER}${2}" appBalancer.sh remove "${3}"
+        ;;
+    url)
+        id=${2:-0}
+        docker port "${WEB_CONTAINER}${id}" "${WEB_LISTEN_PORT}"
+        ;;
+    *)
+        id=0
+        if [[ (-z "${1//[0-9]/}") && (${1} -lt ${#exists[@]}) ]]; then
+            id=${1}
+            shift
+        fi
+        cmd "${WEB_CONTAINER}${id}" "${WEB_IMAGE}" -ti -- -ti -- "$@"
+        ;;
+esac

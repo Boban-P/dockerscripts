@@ -1,0 +1,4 @@
+NAME=server:phpfpm
+
+DEPENDS=debian:stable
+PACKAGES=../application

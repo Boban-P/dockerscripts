@@ -1,0 +1,249 @@
+#!/bin/bash
+
+# application server
+# Usage: $0 start [dbip] [ip:port] | stop
+#              dbip : ip address of database server, a domain "dbhost"
+#                     is made available to application server for
+#                     accessing this ip.
+#              optional ip:port is the ip and port of host system the
+#              application will listen, format can be ip:port or port
+#    eg: $0 start 0.0.0.0:80
+#        $0 start 80
+# TODO: implement argument and state checking.
+
+show_help() {
+    echo "Usage: $0 [options] command [args]"
+    echo "Options:
+    --help              : show this help and exit
+    -d | --db           : database server ip
+    -i | --pubiship     : publised ip
+    -p | --port         : published port
+    -n | --dns          : dns server
+    -m | --mail         : mail server
+Commands:
+    start               : start new application server
+    stop                : stop an application server
+    stopall             : stop all instance of application server
+    url [id]            : get ip address of application server
+    update              : update application source
+    hostadd domain ip   : add hosts file entry for all application server
+    hostrm domain ip    : remove hosts file entry from all application server
+    [id=0] *            : execute custom command in application server.
+    "
+}
+args=()
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --publiship|-i)
+            publishIp="$2"
+            shift
+            ;;
+        --port|-p)
+            http_port="$2"
+            shift
+            ;;
+        --dns|-n)
+            dns="$2"
+            shift
+            ;;
+        --mail|-m)
+            mail="$2"
+            shift
+            ;;
+        --db|-d)
+            db="$2"
+            shift
+            ;;
+        start|stop|stopall|update|url|hostadd|hostrm)
+            args+=("$1")
+            move=1
+            ;;
+        --help)
+            show_help
+            exit 0
+            ;;
+        *)
+        # for custom command don't do anything.
+            if [[ -z "${move}" ]]; then
+                args+=("$@")
+                break;
+            else
+                args+=("$1")
+            fi
+        ;;
+    esac
+    shift
+done
+set -- "${args[@]}"
+
+if [[ (-z "${APP_IMAGE}") || (-z "${APP_CONTAINER}") ]]; then
+    echo "CONFIG don not contain APP_IMAGE or APP_CONTAINER" >&2
+    exit 1
+fi
+
+# application server
+APP_ASSET="${APP_ASSET:-"${DATA}/www"}"
+APP_PRIVATE_ROOT="${APP_PRIVATE_ROOT:-"${ASSET}/www"}"
+APP_REPO_BRANCH="${APP_REPO_BRANCH:-development}"
+APP_DEBUG_MAP_PORT="${APP_DEBUG_MAP_PORT:-0}"
+DOCUMENT_ROOT="${DOCUMENT_ROOT:-"/home/www"}"
+APP_WRITE_MOUNT="${APP_WRITE_MOUNT:-1}"
+
+start="$(dockerinfo startup_command "${APP_IMAGE}")"
+mapfile -t exists <<< "$(docker ps -f 'name=^'"${APP_CONTAINER}"'\d*$' -q)"
+
+if [[ (${#exists[@]} -eq 1) && (-z "${exists[0]}") ]]; then
+    exists=()
+fi
+
+if [[ -z "${APP_LISTEN_PORT}" ]]; then
+    APP_LISTEN_PORT=$(dockerinfo variable "${APP_IMAGE}" LISTEN_PORT)
+else
+    export DOCKER_OPTION_listen_port="-e=LISTEN_PORT=${APP_LISTEN_PORT}"
+fi
+
+if [[ ("${#exists[@]}" -eq 0) || ("${1}" = "start") ]]; then
+    # mount document root.
+
+    [[ -n "${mail}" ]] && export DOCKER_OPTION_mailer="-e=MAIL_FORWARD_HOST=${mail}"
+    [[ -n "${dns}" ]] && export DOCKER_OPTION_dns="-e=DNS_SERVER=${dns}"
+
+    if [[ -n "${APP_WRITE_MOUNT//0/}" ]]; then
+        export SITE_PATH_document_root=type=bind,source="${APP_ASSET}",destination="${DOCUMENT_ROOT}"
+    else
+        export SITE_PATH_document_root=type=bind,source="${APP_ASSET}",destination="${DOCUMENT_ROOT}",readonly
+    fi
+
+    # create document root if it do not exits.
+    if [[ ! -d "${APP_ASSET}" ]]; then
+        mkdir -p "${APP_ASSET}"
+        test -n "${APP_ASSET_REPO}" && (git clone --depth 1 -b "${APP_REPO_BRANCH}" "${APP_ASSET_REPO}" "${APP_ASSET}" || rm -rf "${APP_ASSET}")
+    fi
+
+    if [[ (-n "${APP_PRIVATE_ROOT}") && (! -d "${APP_PRIVATE_ROOT}") ]]; then
+        mkdir -p "${APP_PRIVATE_ROOT}"
+    fi
+
+    if [[ (-n ${APP_PRIVATE_ROOT}) && (-n ${DOCUMENT_ROOT}) ]]; then
+        dirs=(${APP_DOCUMENT_ASSETS} ${APP_PRIVATE_ASSETS})
+        for dir in "${dirs[@]}"; do
+            # Mounting APP_PRIVATE_ROOT/DIR TO DOCUMENT_ROOT/DIR
+            export "SITE_PATH_$dir=type=bind,source='${APP_PRIVATE_ROOT%/}/${dir}',destination='${DOCUMENT_ROOT%/}/${dir}'"
+        done
+        if [[ (-n "${APP_PRIVATE_RESOURCE_TYPE}") && (-n "${APP_PRIVATE_ROOT_SOURCE}") ]]; then
+        
+            case "${APP_PRIVATE_RESOURCE_TYPE}" in
+            s3)
+                [[ -d  "${APP_PRIVATE_ROOT}" ]] || mkdir -p "${APP_PRIVATE_ROOT}"
+                # copy files if directory is empty.
+                [[ -n "$(find "${APP_PRIVATE_ROOT}" -maxdepth 0 -type d -empty 2>/dev/null)" ]] && \
+                    sudo s3cmd -rp get "${APP_PRIVATE_ROOT_SOURCE%/}/" "${APP_PRIVATE_ROOT%/}/"
+                ;;
+            nfs)
+                [[ -d  "${APP_PRIVATE_ROOT}" ]] || mkdir -p "${APP_PRIVATE_ROOT}"
+                # mount directory if not already mounted.
+                mountpoint -q "${APP_PRIVATE_ROOT}" && \
+                    sudo mount -t nfs "${APP_PRIVATE_ROOT_SOURCE}" ${APP_PRIVATE_ROOT}
+                ;;
+            esac
+        fi
+    fi
+    
+    if [[ "${APP_DEBUG_MAP_PORT:-0}" == "1" ]]; then
+        container_port=$(dockerinfo variable "${APP_IMAGE}" REMOTE_DEBUG_PORT)
+        if [[ -n "${container_port}" ]]; then
+            if [[ -z "${APP_DEBUG_PORT}" ]]; then
+                APP_DEBUG_PORT=${container_port}
+            fi
+            export DOCKER_OPTION_debug_portmap="-p=${debug_ip:-0.0.0.0}:${APP_DEBUG_PORT}:${container_port}"
+        fi
+    fi
+    mapfile -t lines <<<"$(env | grep '^APP_ENV_')"
+    for line in "${lines[@]}"; do
+        if [[ -n "${line}" ]]; then
+			value=${line#APP_ENV_}
+            name="${value%%=*}"
+            variable="${value#*=}"
+            export "DOCKER_OPTION_env_${name}=-e=${name}=${variable}"
+        fi
+    done
+    mapfile -t lines <<<"$(env | grep '^APP_MOUNT_')"
+    for line in "${lines[@]}"; do
+        if [[ -n "${line}" ]]; then
+			value=${line#APP_MOUNT_}
+            name="${value%%=*}"
+			IFS="=" read -r -a value<<<"${value#*=}"
+            if [[ ${#value[@]} -eq 2 ]]; then
+                export "SITE_PATH_${name}=type=bind,source=${value[1]},destination=${value[0]}"
+            fi
+        fi
+    done
+
+    if [[ -n "${publishIp}" ]]; then
+        export "DOCKER_OPTION_publish_port=--publish=${publishIp}:${port}:${APP_LISTEN_PORT}"
+    fi
+fi
+
+case "$1" in
+    start)
+        # get arguments for db, mail and dns
+
+        cmd "${APP_CONTAINER}${#exists[@]}" "${APP_IMAGE}" -d -w "${DOCUMENT_ROOT}" --  -- "${start}"
+        test -n "${db}" && cmd "${APP_CONTAINER}${#exists[@]}" "${APP_IMAGE}" host.sh add "dbhost" "${db}"
+        ;;
+    stop)
+        if [[ ${#exists[@]} -gt 0 ]]; then
+            container="${APP_CONTAINER}$(( ${#exists[@]} - 1))"
+            docker stop "${container}"
+        fi
+        ;;
+    stopall)
+        count=${#exists[@]}
+        while [[ ${count} -gt 0 ]]; do
+            container="${APP_CONTAINER}$(( --count ))"
+            docker stop "${container}"
+        done
+        ;;
+    update)
+        if [[ -d "${APP_ASSET}/.git" ]]; then
+            test -n "${APP_ASSET_REPO}" && git -C "${APP_ASSET}" pull origin "${APP_REPO_BRANCH}" >/dev/null
+        else
+            test -n "${APP_ASSET_REPO}" && (git clone --depth 1 -b "${APP_REPO_BRANCH}" "${APP_ASSET_REPO}" "${APP_ASSET}" || rm -rf "${APP_ASSET}")
+        fi
+        ;;
+    hostadd)
+        if [[ $# -lt 4 ]]; then
+            exit 1
+        fi
+        count=${#exists[@]}
+        start=0
+        while [[ ${start} -lt ${count} ]]; do
+            cmd "${APP_CONTAINER}${start}" "${APP_IMAGE}" host.sh add "$2" "$3"
+            ((start++))
+        done
+        ;;
+    hostrm)
+        if [[ $# -lt 4 ]]; then
+            exit 1
+        fi
+
+        count=${#exists[@]}
+        start=0
+        while [[ ${start} -lt ${count} ]]; do
+            cmd "${APP_CONTAINER}${start}" "${APP_IMAGE}" host.sh remove "$2" "$3"
+            ((start++))
+        done
+        ;;
+    url)
+        id=${2:-0}
+        docker port "${APP_CONTAINER}${id}" "${APP_LISTEN_PORT}"
+        ;;
+    *)
+        id=0
+        if [[ (-z "${1//[0-9]/}") && (${1} -lt ${#exists[@]}) ]]; then
+            id=${1}
+            shift
+        fi
+        cmd "${APP_CONTAINER}${id}" "${APP_IMAGE}" -ti -- -ti -- "$@"
+        ;;
+esac

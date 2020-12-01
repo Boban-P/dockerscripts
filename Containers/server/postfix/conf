@@ -1,7 +1,0 @@
-NAME=server-postfix
-
-DEPENDS=
-CONTAINERS=
-DATAS=
-ASSETS=
-PACKAGES=

@@ -1,5 +1,0 @@
-#!/bin/bash
-
-# Script to update webroot data.
-
-webroot_update

@@ -1,7 +1,0 @@
-NAME=server-dnsmasq
-
-DEPENDS=
-CONTAINERS=
-DATAS=
-ASSETS=
-PACKAGES=

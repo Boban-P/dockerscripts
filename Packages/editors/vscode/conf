@@ -1,0 +1,16 @@
+NAME=vscode
+
+DEPENDS=debian:stable
+PACKAGES=
+
+# CODE_URL=https://update.code.visualstudio.com/1.52/linux-deb-x64/stable
+# CODE_URL=https://update.code.visualstudio.com/1.51.1/linux-deb-x64/stable
+
+INSTALL_ARG_CODE_URL="https://update.code.visualstudio.com/1.48.2/linux-deb-x64/stable"
+INSTALL_ARG_CODE_FILE="code_1.48.2-1598353430_amd64.deb"
+
+# APPLICATION
+
+ENABLE_GUI=1
+DOCKER_OPTION_shm_size=--shm-size=3gb
+

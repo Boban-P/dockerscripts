@@ -47,24 +47,23 @@ case "$1" in
         web stop
         app stop
         db stop
-        dnsmasq stop
-        postfix stop
+        dns stop
+        mail stop
         ;;
     stopall)
         balancer stop
         web stopall
         app stopall
         db stop
-        dnsmasq stop
-        postfix stop
+        dns stop
+        mail stop
         ;;
     *)
-        postfix start ${ip}:25
-        dnsmasq start "${ip}":53
-        db start "${ip}":3306
-        # ${ip}:${port}, "${ip}:" for assigning available port
-        app start -d "${ip}" -m "${ip}" -n "${ip}" "${ip}":
-        web start "$(app url 0)" "${ip}": "${publicip}"
-        balancer start "$(web url 0)" "${publicip}" "${sitename[@]}"
+        mail --publiship ${ip} --port 25 start
+        dns --publiship ${ip} --port 53 start
+        db --publiship ${ip} --port 3306 start
+        app --db ${ip} --dns ${ip} --mail ${ip} --publiship ${ip} start
+        web --app "$(app url 0)" --publiship "${ip}" --trust "${publicip}" start
+        balancer --node "$(web url 0)" --publiship "${publicip}" start
         ;;
 esac

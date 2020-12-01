@@ -1,0 +1,87 @@
+#!/bin/bash
+
+show_help() {
+    echo "Usage: $0 [options] command [args]"
+    echo "Options:
+    --help                  : show this help and exit
+    --container-name  name  : name of the container
+    --publiship ip          : published ip address of server
+    --port port             : published port number of server
+
+Command:
+    start                   : Start server
+    stop                    : Stop server
+    *  args                 : command to run in server
+    "
+}
+
+args=()
+port=53
+while [[ $# -ne 0 ]]; do
+    case $1 in
+        --help)
+            show_help
+            exit
+            ;;
+        --container-name)
+            DNS_CONTAINER="$2"
+            shift
+            ;;
+        --publiship)
+            publishIp="$2"
+            shift
+            ;;
+        --port)
+            port="$2"
+            shift
+            ;;
+        start|stop)
+            args+=("$1")
+            move=1
+            ;;
+        *)
+        # for custom command don't do anything.
+            if [[ -z "${move}" ]]; then
+                args+=("$@")
+                break;
+            else
+                args+=("$1")
+            fi
+            ;;
+    esac
+    shift
+done
+set -- "${args[@]}"
+
+DNS_IMAGE="${DNS_IMAGE:-"bb526/server:dnsmasq"}"
+DNS_LOG_PATH="${DNS_LOG_PATH:-"${DATA}/dns/log"}"
+
+exists=$(docker ps -q -f 'name=^'"${DNS_CONTAINER}"'$')
+start="$(dockerinfo startup_command "${DNS_IMAGE}")"
+
+if [[ -z "${exists}" ]]; then
+    test -n "${DNS_SERVER}" && export DOCKER_OPTION_dns="-e=SERVER=${DNS_SERVER}"
+    test -n "${DNS_ALLOWED_HOSTS}" && export DOCKER_OPTION_host="-e=HOST_ALLOWED=${DNS_ALLOWED_HOSTS}"
+    if [[ -n "${DNS_LOG_PATH}" ]]; then
+        export SITE_PATH_logfile="type=bind,source=${DNS_LOG_PATH},destination=/var/log"
+        if [[ ! -d "${DNS_LOG_PATH}" ]]; then
+            mkdir -p "${DNS_LOG_PATH}"
+        fi
+    fi
+    test -n "${DNS_HOST_MAP}" && export DOCKER_OPTION_map='-e=HOST_MAP="'"${DNS_HOST_MAP}"'"'
+    test -n "${publishIp}" && export DOCKER_OPTION_publisth="--publish=${publishIp}:${port}:53/udp"
+fi
+
+case "${1}" in
+    "start")
+        if [[ -z "${exists}" ]]; then
+            cmd "${DNS_CONTAINER}" "${DNS_IMAGE}" -d -- -- "${start}"
+        fi
+        ;;
+    "stop")
+        test -n "${exists}" && docker stop "${DNS_CONTAINER}"
+        ;;
+    *)
+        cmd "${DNS_CONTAINER}" "${DNS_IMAGE}" -ti -- -ti -- "$@"
+        ;;
+esac

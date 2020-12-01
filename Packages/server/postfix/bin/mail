@@ -1,0 +1,103 @@
+#!/bin/bash
+
+show_help() {
+    echo "Usage: $0 [Options] command [args]"
+    echo "Options:
+        --help                      : show this help and exit
+        --container-name name       : name of container
+        --publiship hostip          : ip address of host to publish
+        --port  port-number[=25]    : port number to publish
+commands:
+    start                           : start mail server
+    stop                            : stop mail server
+    * args                          : execute a command in server.
+"
+}
+
+args=()
+port=25
+while [[ $# -ne 0 ]]; do
+    case "$1" in
+        --help)
+            show_help
+            exit
+            ;;
+        --container-name)
+            MAIL_CONTAINER="$2"
+            shift
+            ;;
+        --publiship)
+            publishIp="$2"
+            shift
+            ;;
+        --port)
+            port="$2"
+            shift
+            ;;
+        start|stop)
+            args+=("$1")
+            move=1
+            ;;
+        *)
+            if [[ -z "$move" ]]; then
+                args+=("$@")
+                break;
+            else
+                args+=("$1")
+            fi
+    esac
+    shift
+done
+set -- "${args[@]}"
+
+
+MAIL_IMAGE="${MAIL_IMAGE:-"bb526/server:postfix"}"
+[[ -z "${MAIL_CONTAINER}" ]] && echo "container name not specified" >&2 && exit 2
+[[ -z "${MAIL_HOST_NAME}" ]] && echo "hostname of mail server is required" >&2 && exit 3
+MAIL_LOG_PATH="${MAIL_LOG_PATH:-"${DATA}/mail/log"}"
+MAIL_CERTIFICATE_ROOT="${MAIL_CERTIFICATE_ROOT:-"${ASSET}/balancer"}"
+MAIL_CERTIFICATE_KEY="${MAIL_CERTIFICATE_KEY:-"domains/${MAIL_HOST_NAME}/privkey.pem"}"
+MAIL_CERTIFICATE="${MAIL_CERTIFICATE:-"domains/${MAIL_HOST_NAME}/pubcert.pem"}"
+
+exists=$(docker ps -q -f 'name=^'"${MAIL_CONTAINER}"'$')
+start="$(dockerinfo startup_command "${MAIL_IMAGE}")"
+
+if [[ -z "${exists}" ]]; then
+    export DOCKER_OPTION_mailhost="-e=HOST_NAME=${MAIL_HOST_NAME}"
+    test -n "${MAIL_DESTINATION}"   && export DOCKER_OPTION_maildest="-e=DESTINATION=${MAIL_DESTINATION}"
+    test -n "${MAIL_RELAY_DOMAINS}" && export DOCKER_OPTION_maildomain="-e=RELAY_DOMAINS=${MAIL_RELAY_DOMAINS}"
+    test -n "${MAIL_BANNER}"        && export DOCKER_OPTION_mailbanner="-e=BANNER=${MAIL_BANNER}"
+    test -n "${MAIL_RELAY}"         && export DOCKER_OPTION_mailrelay="-e=RELAY=${MAIL_RELAY}"
+    test -n "${MAIL_PORT}"          && export DOCKER_OPTION_mailport="-e=PORT=${MAIL_PORT}"
+    test -n "${MAIL_USER}"          && export DOCKER_OPTION_mailuser="-e=USER=${MAIL_USER}"
+    test -n "${MAIL_PASSWORD}"      && export DOCKER_OPTION_mailpass="-e=PASSWORD=${MAIL_PASSWORD}"
+    if [[ -n "${MAIL_LOG_PATH}" ]]; then
+        export DOCKER_OPTION_maillogfile="-e=MAIL_LOG=/var/log/mail.log" 
+        export SITE_PATH_maillog="type=bind,source=${MAIL_LOG_PATH},destination=/var/log"
+        if [[ ! -d "${MAIL_LOG_PATH}" ]]; then
+            mkdir -p "${MAIL_LOG_PATH}"
+        fi
+    fi
+    if [[ -n "${MAIL_CERTIFICATE_ROOT}" ]]; then
+        [[ ! -d "${MAIL_CERTIFICATE_ROOT}" ]] && echo "No mail certificat files exists at ${MAIL_CERTIFICATE_ROOT}" >&2 && exit 4
+        export SITE_PATH_mail_cert="type=bind,source=${MAIL_CERTIFICATE_ROOT},destination=/etc/postfix/certs"
+        export DOCKER_OPTION_key_file="-e=KEY_FILE=${MAIL_CERTIFICATE_KEY}"
+        export DOCKER_OPTION_cert_file="-e=CERT_FILE=${MAIL_CERTIFICATE}"
+    fi
+
+    [[ -n "${publishIp}" ]] && export DOCKER_OPTION_publish="--publish=${publishIp}:${port}:25"
+fi
+
+case "${1}" in
+    "start")
+        if [[ -z "${exists}" ]]; then
+            cmd "${MAIL_CONTAINER}" "${MAIL_IMAGE}" -d -- -- "${start}"
+        fi
+        ;;
+    "stop")
+        test -n "${exists}" && docker stop "${MAIL_CONTAINER}"
+        ;;
+    *)
+        cmd "${MAIL_CONTAINER}" "${MAIL_IMAGE}" -ti -- -ti -- "$@"
+        ;;
+esac

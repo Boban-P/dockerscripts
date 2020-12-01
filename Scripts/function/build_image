@@ -19,9 +19,9 @@ function docker_build() {
     fi
     # make build_arg
     args=()
-    for line in $(env | grep -e '^INSTALL_ARG_'); do
-        arg=${line#INSTALL_ARG_}
-        args+=(--build-arg "${arg}")
+    mapfile -t lines<<<"$(env | grep -e '^INSTALL_ARG_')"
+    for line in "${lines[@]}"; do
+        [[ -n "$line" ]] && args+=(--build-arg "${line/#INSTALL_ARG_/}")
     done
     DOCKER_BUILDKIT=1 docker build "${args[@]}" -t "${NAME}" "${DIR}" || exit $?
     postbuildscript="${DIR}/postbuild.sh"
@@ -71,7 +71,9 @@ if [[ -z "${FORCE_BUILD_IMAGE}" ]]; then
     # if [[ "${DO_RECURSE:-0}" == "1" ]]; then
         mapfile -t images<<<"$(dependancy_map --image "${args[@]}")"
         for image in "${images[@]}"; do
-            [[ -n "${image}" ]] && (docker image inspect "${image}" >/dev/null 2>&1 || docker pull "$image" || exit 2)
+            if [[ -n "${image}" ]]; then
+                docker image inspect "${image}" >/dev/null 2>&1 || docker pull "$image" || exit 2
+            fi
         done
         mapfile -t packages<<<"$(dependancy_map "${args[@]}")"
         for package in "${packages[@]}"; do
@@ -88,7 +90,9 @@ else
     # if [[ "${DO_RECURSE:-0}" == "1" ]]; then
         mapfile -t images<<<"$(dependancy_map --image "${args[@]}")"
         for image in "${images[@]}"; do
-            [[ -n "${image}" ]] && docker image inspect "${image}" >/dev/null 2>&1 || docker pull "${image}" || exit 2
+            if [[ -n "${image}" ]]; then
+                docker image inspect "${image}" >/dev/null 2>&1 || docker pull "${image}" || exit 2
+            fi
         done
         mapfile -t packages<<<"$(dependancy_map "${args[@]}")"
         for package in "${packages[@]}"; do

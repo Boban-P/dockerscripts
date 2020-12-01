@@ -1,0 +1,203 @@
+#!/bin/bash
+
+# Web balancer
+# Usage: $0 start --node handler-ip:port --publiship pulbicip --http-port port --ssl-port port | stop | nodeadd ip:port | noderm ip:port
+# Usage: $0 start child-server-ip:port [port-forward-ip [http-port ssl-port]] | stop | childAdd ip:port
+#        child-server-ip : ip address or host name of child web server, additional
+#                        child servers can be added by childAdd command
+#        port-forward-ip: ip address of host system from which incomming traffic will be
+#                        forwarded to containers listening port.
+#                        if omitted all ips is used.
+
+show_help() {
+    echo "Usage ${0} [options] command commandargs"
+    echo "options:
+    --help          : show this help and exit
+    -n | --node     : node to be added , this option is valid only with
+                     'start', use many times to add many backend nodes.
+    -p | --publiship: ip address to map listening ports to
+    -h | --http-port: http listen port on publish ip, default to 80
+    -s | --ssl-port : ssl listen port on publish ip, default to 443 
+commands:
+    start   : if not started, start node balancer
+    stop    : stop running balancer server
+    reload  : reload balancer server,
+              useful to reaload after fetching ssl certificate
+    nodeadd : add a backend node
+        commandargs: ip:port
+    noderm  : remove a backend node
+        commandargs: ip:port
+    routeadd: Not implemented, add a routed node
+        commandargs: routeid ip:port
+    routedel: Not implemented, remove a routed node
+        commandargs: routeid ip:port
+    *       : custom command to run in balancer server, if not already
+              running, this command will create an instance to run the command
+        commandargs: see man page of command.
+    "
+}
+
+args=()
+nodes=()
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --sitename)
+            SITE_ALIAS="${SITE_ALIAS} ${2}"
+            shift
+            ;;
+        --node|-n)
+            nodes+=("$2")
+            shift
+            ;;
+        --publiship|-p)
+            publishIp="$2"
+            shift
+            ;;
+        --http-port|-h)
+            http_port="$2"
+            shift
+            ;;
+        --ssl-port|-s)
+            ssl_port="$2"
+            shift
+            ;;
+        start|stop|reload|nodeadd|noderm)
+            args+=("$1")
+            move=1
+            ;;
+        --help)
+            show_help
+            exit 0
+            ;;
+        *)
+        # for custom command don't do anything.
+            if [[ -z "${move}" ]]; then
+                args+=("$@")
+                break;
+            else
+                args+=("$1")
+            fi
+        ;;
+    esac
+    shift
+done
+set -- "${args[@]}"
+
+# DEFAULT VALUES
+BALANCER_IMAGE="${BALANCER_IMAGE:-bb526/server:apache}"
+BALANCER_CONTAINER="${BALANCER_CONTAINER:-"webserver-balancer"}"
+BALANCER_LOG_LEVEL="${BALANCER_LOG_LEVEL:-warn}"
+BALANCER_ENABLE_SSL=${BALANCER_ENABLE_SSL:-1}
+BALANCER_SSL_ONLY=${BALANCER_SSL_ONLY:-0}
+BALANCER_CERTIFICATE_PATH="${BALANCER_CERTIFICATE_PATH:-"${ASSET}/ssl"}"
+BALANCER_CONFIG_PATH="${BALANCER_CONFIG_PATH:-"${ASSET}/balancer"}"
+BALANCER_LOG_PATH="${BALANCER_LOG_PATH:-"${DATA}/balancer"}"
+BALANCER_CERTIFICATE_AUTHORITY="${BALANCER_CERTIFICATE_AUTHORITY:-"letsencrypt-staging"}"
+
+start="$(dockerinfo startup_command "${BALANCER_IMAGE}")"
+exists=$(docker ps -f 'name=^'"${BALANCER_CONTAINER}"'$' -q)
+
+if [[ -z "${exists}" ]]; then
+
+
+    # get exposed port
+    if [[ -z "${BALANCER_LISTEN_PORT}" ]]; then
+        BALANCER_LISTEN_PORT=$(dockerinfo variable "${BALANCER_IMAGE}" LISTEN_PORT)
+        BALANCER_LISTEN_PORT="${BALANCER_LISTEN_PORT:-80}"
+    else
+        export DOCKER_OPTION_listen_port="-e=LISTEN_PORT=${BALANCER_LISTEN_PORT}"
+    fi
+
+
+    if [[ -n "${publishIp}" ]]; then
+        export DOCKER_OPTION_bind_port="--publish=${publishIp}:${http_port:-80}:${BALANCER_LISTEN_PORT}"
+    fi
+
+    export DOCKER_OPTION_site_name="-e=SITE_NAME=${SITE_NAME}"
+    export DOCKER_OPTION_site_alias='-e=SITE_ALIAS='"${SITE_ALIAS}"
+
+    export DOCKER_OPTION_site_log_level="-e=SITE_LOG_LEVEL=${BALANCER_LOG_LEVEL}"
+
+    if [[ "${BALANCER_ENABLE_SSL:-0}" != "0" ]]; then
+        export DOCKER_OPTION_ssl_enable="-e=SSL_ON=1"
+        if [[ "${BALANCER_SSL_ONLY:-0}" != "0" ]]; then
+            export DOCKER_OPTION_ssl_only="-e=SSL_ONLY=1"
+        fi
+        if [[ -n "${BALANCER_CONFIG_PATH}" ]]; then
+            if [[ ! -d "${BALANCER_CONFIG_PATH}" ]]; then
+                mkdir -p "${BALANCER_CONFIG_PATH}"
+            fi
+            export SITE_PATH_md_dir=type=bind,source=${BALANCER_CONFIG_PATH},destination=/etc/apache2/md
+        fi
+        if [[ -n "${BALANCER_CERTIFICATE_PATH}" ]]; then
+            if [[ ! -d "${BALANCER_CERTIFICATE_PATH}" ]]; then
+                mkdir -p "${BALANCER_CERTIFICATE_PATH}"
+            fi
+            export SITE_PATH_ssl_dir=type=bind,source=${BALANCER_CERTIFICATE_PATH},destination=/etc/apache2/ssl
+        fi
+
+        if [[ -n ${BALANCER_CERTIFICATE_AUTHORITY} ]]; then
+            export DOCKER_OPTION_acme_provider="-e=ACME_PROVIDER=${BALANCER_CERTIFICATE_AUTHORITY}"
+        fi
+
+        if [[ -z "${BALANCER_LISTEN_SSLPORT}" ]]; then
+            BALANCER_LISTEN_SSLPORT=$(dockerinfo variable "${BALANCER_IMAGE}" LISTEN_SSLPORT)
+            BALANCER_LISTEN_SSLPORT=${BALANCER_LISTEN_SSLPORT:-443}
+        else
+            export DOCKER_OPTION_listen_sslport="-e=LISTEN_SSLPORT=${BALANCER_LISTEN_SSLPORT}"
+        fi
+
+        if [[ -n "${publishIp}" ]]; then
+            export DOCKER_OPTION_bind_sslport="--publish=${publishIp}:${ssh_port:-443}:${BALANCER_LISTEN_SSLPORT}"
+        fi
+    fi
+
+    if [[ -n "${BALANCER_LOG_PATH}" ]]; then
+        export SITE_PATH_logfile="type=bind,source=${BALANCER_LOG_PATH},destination=/var/log/apache2"
+        if [[ ! -d "${BALANCER_LOG_PATH}" ]]; then
+            mkdir -p "${BALANCER_LOG_PATH}"
+        fi
+    fi
+fi
+
+case "$1" in
+    start)
+        # Check: container exists? abort. argument count 2
+        if [[ -z "${exists}" ]]; then
+            cmd "${BALANCER_CONTAINER}" "${BALANCER_IMAGE}" -d -e CONFIG_TYPE=balancer --  -- "${start}"
+            while [[ $? -eq 0 ]]; do
+                sleep 1
+                docker exec "${BALANCER_CONTAINER}" bash -c '[[ -f /etc/apache2/sites-enabled/default.conf ]] && exit 1 || exit 0 '
+            done
+            for node in "${nodes[@]}"; do
+                cmd "${BALANCER_CONTAINER}" "${BALANCER_IMAGE}" childBalancer.sh add "${node}"
+            done
+        fi
+        ;;
+    stop)
+        test -n "${exists}" && docker exec "${BALANCER_CONTAINER}" apache2ctl stop
+        ;;
+    reload)
+        test -n "${exists}" && docker exec "${BALANCER_CONTAINER}" apache2ctl graceful
+        ;;
+    nodeadd)
+        if [[ $# -lt 2 ]]; then
+            echo "backend url required"
+            exit;
+        fi
+        docker exec "${BALANCER_CONTAINER}" childBalancer.sh add "${2}"
+        ;;
+    noderemove)
+        if [[ $# -lt 2 ]]; then
+            echo "backend url required"
+            exit;
+        fi
+        docker exec "${BALANCER_CONTAINER}" childBalancer.sh remove "${2}"
+        ;;
+    env)
+        env
+        ;;
+    *)
+        cmd "${BALANCER_CONTAINER}" "${BALANCER_IMAGE}" -ti -e CONFIG_TYPE=balancer -- -ti -- "$@"
+        ;;
+esac
