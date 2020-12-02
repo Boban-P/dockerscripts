@@ -117,7 +117,7 @@ if [[ (${#exists[@]} -eq 0) || ("${1}" = "start") ]]; then
     fi
     # mounting assets as readonly
     if [[ (-n ${APP_PRIVATE_ROOT}) && (-n ${DOCUMENT_ROOT}) ]]; then
-        dirs=(${APP_DOCUMENT_ASSETS})
+        dirs=(${WEB_DOCUMENT_ASSETS})
         for dir in "${dirs[@]}"; do
             # Mounting APP_PRIVATE_ROOT/DIR TO DOCUMENT_ROOT/DIR
             export "SITE_PATH_$dir=type=bind,source='${APP_PRIVATE_ROOT%/}/${dir}',destination='${DOCUMENT_ROOT%/}/${dir}',readonly"

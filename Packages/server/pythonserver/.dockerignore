@@ -1,0 +1,5 @@
+bin/*
+Data/*
+Asset/*
+*.conf
+conf

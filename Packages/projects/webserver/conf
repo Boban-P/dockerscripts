@@ -4,9 +4,6 @@ NAME=project-webserver
 ENABLE_GUI=0
 
 DEPENDS=
-CONTAINERS=
-DATAS=
-ASSETS=
 PACKAGES="../../server/phpfpm ../../server/mariadb ../../server/apache ../../server/postfix ../../server/dnsmasq"
 
 
@@ -34,8 +31,7 @@ BALANCER_CONTAINER=webserver-balancer
 # BALANCER_SSL_ONLY=0
 # BALANCER_CERTIFICATE_PATH=${ASSET}/ssl
 # BALANCER_CONFIG_PATH=${ASSET}/balancer
-# the logs are written to this directory.
-# BALANCER_LOG_PATH=${DATA}/balancer=
+# BALANCER_LOG_PATH=${DATA}/balancer
 # BALANCER_CERTIFICATE_AUTHORITY=letsencrypt-staging
 SITE_NAME=example.com
 SITE_ALIAS=www.example.com
@@ -56,7 +52,7 @@ WEB_CONFIG_TYPE=phpapp
 # WEB_LOG_PATH=${DATA}/Webserver
 # WEB_LISTEN_PORT=
 # APP_ENVIRONMENT=$(git rev-parse --abbrev-ref HEAD -C "$(dirname "${BASH_SOURCE[0]}")")
-# APP_DOCUMENT_ASSETS=
+# WEB_DOCUMENT_ASSETS=
 
 
 # PHP application server
@@ -76,7 +72,6 @@ APP_CONTAINER=webserver-app
 # APP_ENV_{name}={value}
 # APP_ENV_MEMMORY_LIMIT=512M
 APP_ENV_FROM_MAIL_ADDRESS="noreplay@${SITE_NAME}"
-APP_ENV_LISTEN_PORT=5555
 # APP_MOUNT_{name}=
 # DOCUMENT_ROOT=/home/wwww
 APP_WRITE_MOUNT=0
@@ -93,7 +88,7 @@ DNS_CONTAINER=webserver-dns
 # POSTFIX
 # MAIL_IMAGE=bb526/server:postfix
 MAIL_CONTAINER=webserver-mail
-MAIL_HOST_NAME=SITE_NAME
+MAIL_HOST_NAME=${SITE_NAME}
 # MAIL_DESTINATION=
 # MAIL_RELAY_DOMAINS=
 # MAIL_BANNER=

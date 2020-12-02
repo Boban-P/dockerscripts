@@ -128,7 +128,8 @@ if [[ ("${#exists[@]}" -eq 0) || ("${1}" = "start") ]]; then
         dirs=(${APP_DOCUMENT_ASSETS} ${APP_PRIVATE_ASSETS})
         for dir in "${dirs[@]}"; do
             # Mounting APP_PRIVATE_ROOT/DIR TO DOCUMENT_ROOT/DIR
-            export "SITE_PATH_$dir=type=bind,source='${APP_PRIVATE_ROOT%/}/${dir}',destination='${DOCUMENT_ROOT%/}/${dir}'"
+            name="$(sed 's/[^a-zA-Z0-9_]/_/g' <<<"${dir}")"
+            export "SITE_PATH_${name}=type=bind,source=${APP_PRIVATE_ROOT%/}/${dir},destination=${DOCUMENT_ROOT%/}/${dir}"
         done
         if [[ (-n "${APP_PRIVATE_RESOURCE_TYPE}") && (-n "${APP_PRIVATE_ROOT_SOURCE}") ]]; then
         
@@ -137,7 +138,7 @@ if [[ ("${#exists[@]}" -eq 0) || ("${1}" = "start") ]]; then
                 [[ -d  "${APP_PRIVATE_ROOT}" ]] || mkdir -p "${APP_PRIVATE_ROOT}"
                 # copy files if directory is empty.
                 [[ -n "$(find "${APP_PRIVATE_ROOT}" -maxdepth 0 -type d -empty 2>/dev/null)" ]] && \
-                    sudo s3cmd -rp get "${APP_PRIVATE_ROOT_SOURCE%/}/" "${APP_PRIVATE_ROOT%/}/"
+                    s3cmd -rp get "${APP_PRIVATE_ROOT_SOURCE%/}/" "${APP_PRIVATE_ROOT%/}/"
                 ;;
             nfs)
                 [[ -d  "${APP_PRIVATE_ROOT}" ]] || mkdir -p "${APP_PRIVATE_ROOT}"
