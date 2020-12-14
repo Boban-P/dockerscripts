@@ -1,0 +1,32 @@
+#!/bin/bash
+
+[[ ! -f "${DIR}/db.conf" ]] && >&2 echo "database server configuration file not found" && exit 1
+source "${DIR}/db.conf"
+
+[[ ! -f "${DIR}/app.conf" ]] && >&2 echo "application configuration file not found" && exit 1
+source "${DIR}/app.conf"
+
+APP_PRIVATE_ROOT="${APP_PRIVATE_ROOT:-"${ASSET}/www"}"
+DB_BACKUP_FILE="${DB_NAME}.sql"
+DB_BACKUP_DIR="${ASSET}/db/backup"
+
+[[ -z "$(docker ps -f 'name=^'"${DB_CONTAINER}"'$' -q)" ]] && echo "database container not started" >&2 && exit 3
+
+if [[ ! -d  "${DB_BACKUP_DIR}" ]]; then
+    mkdir -p "${DB_BACKUP_DIR}"
+    cd  ${DB_BACKUP_DIR} && git init && git config user.email "webuser@${NAME}" && git config user.name "backup script"
+else
+    if [[ -n "${APP_PRIVATE_ROOT_BACKUP}" ]]; then
+        s3cmd sync --delete-removed "${APP_PRIVATE_ROOT_BACKUP%/}/db.git/" "${DB_BACKUP_DIR%/}/.git/" >/dev/null 2>&1
+    fi
+    rmdir "${DB_BACKUP_DIR}" >/dev/null 2>&1 && exit
+fi
+
+if cd "${DB_BACKUP_DIR}"; then
+    db mysqldump ${DB_NAME} | sed 's/),(/),\n(/g' > "${DB_BACKUP_FILE}"
+    git add "${DB_BACKUP_FILE}"
+    git commit -m "scheduled backup at $(date '+%Y_%m_%d %H:%M')" >/dev/null
+    if [[ -n "${APP_PRIVATE_ROOT_BACKUP}" ]]; then
+        s3cmd sync --delete-removed ./.git/ "${APP_PRIVATE_ROOT_BACKUP%/}/db.git/" >/dev/null
+    fi
+fi
