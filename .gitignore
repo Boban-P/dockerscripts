@@ -4,3 +4,6 @@
 *.deb
 */*/*/Assets/
 */*/*/Data/
+**/Assets
+**/Data
+**/Test
