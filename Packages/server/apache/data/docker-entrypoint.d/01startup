@@ -99,7 +99,7 @@ fi
 if [[ -n "${CONFIG_TYPE}" ]]; then
     case "${CONFIG_TYPE}" in
     balancer)
-        /usr/local/bin/balancerConfig
+        source /usr/local/bin/balancerConfig
     ;;
     phpapp)
         /usr/local/bin/phpConfig

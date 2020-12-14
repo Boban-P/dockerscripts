@@ -1,0 +1,4 @@
+NAME=phpfpm:debug
+
+DEPENDS=
+PACKAGES=../

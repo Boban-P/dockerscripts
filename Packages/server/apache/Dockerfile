@@ -47,6 +47,7 @@ RUN apt-get update && \
 #     ACME_ENABLE=0 \
 #     ACME_PROVIDER=letsencrypt|letsencrypt-staging(default)|https://url.to.certificat/provider/path
 #     PATH_ALIASES=location=path,location2=path2
+#     ALIAS_ROUTES="alis1 alias2"
 
 
 COPY data /

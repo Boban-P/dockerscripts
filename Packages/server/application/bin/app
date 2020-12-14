@@ -1,5 +1,6 @@
 #!/bin/bash
 
+set -ae
 # application server
 # Usage: $0 start [dbip] [ip:port] | stop
 #              dbip : ip address of database server, a domain "dbhost"
@@ -20,17 +21,35 @@ show_help() {
     -p | --port         : published port
     -n | --dns          : dns server
     -m | --mail         : mail server
+    --id                : id of container app, a natural number,
+                          if not specified,
+                            default to largest running container id.
+                            or minimum possible id in case of start command.
 Commands:
     start               : start new application server
-    stop                : stop an application server
+    stop                : stop an application server specified by --id,
     stopall             : stop all instance of application server
-    url [id]            : get ip address of application server
+    url                 : get ip address of application server specified by --id
     update              : update application source
     hostadd domain ip   : add hosts file entry for all application server
     hostrm domain ip    : remove hosts file entry from all application server
-    [id=0] *            : execute custom command in application server.
+    *                   : execute custom command in application server, server is choosem by --id parameter.
     "
 }
+
+[[ ! -f "${DIR}/app.conf" ]] && >&2 echo "application configuration file not found" && exit 1
+# include default values
+source "$(dirname "$(dirname "${BASH_SOURCE[0]}")")/app.conf"
+source "${DIR}/app.conf"
+
+unset publishIp
+unset http_port
+unset dns
+unset mail
+unset db
+unset move
+unset CID
+
 args=()
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -52,6 +71,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --db|-d)
             db="$2"
+            shift
+            ;;
+        --id)
+            if [[ "$2" =~ '^[0-9]+$' ]]; then
+                CID="$2"
+            else
+                >&2 echo "option --id needs to be positive integer" && exit 1
+            fi
             shift
             ;;
         start|stop|stopall|update|url|hostadd|hostrm)
@@ -90,10 +117,34 @@ DOCUMENT_ROOT="${DOCUMENT_ROOT:-"/home/www"}"
 APP_WRITE_MOUNT="${APP_WRITE_MOUNT:-1}"
 
 start="$(dockerinfo startup_command "${APP_IMAGE}")"
-mapfile -t exists <<< "$(docker ps -f 'name=^'"${APP_CONTAINER}"'\d*$' -q)"
+mapfile -t exists <<< "$(docker ps -f 'name=^'"${APP_CONTAINER}${CID:-\d*}"'$' --format '{{.Names}}')"
 
 if [[ (${#exists[@]} -eq 1) && (-z "${exists[0]}") ]]; then
     exists=()
+fi
+if [[ -z "${CID}" ]]; then
+    MAX_ID=0;
+    for cname in "${exists[@]}"; do
+        id=${cname#${APP_CONTAINER}}
+        ids+=("${id}")
+        if [[ ${id} -gt ${MAX_ID} ]]; then
+            MAX_ID=${id}
+        fi
+    done
+    if [[ ${#ids[@]} -eq $((MAX_ID + 1)) ]]; then
+        NEXT_ID=$((MAX_ID + 1))
+    else
+        NEXT_ID=0
+        while [[ ${NEXT_ID} -le ${MAX_ID} ]]; do
+            if [[ " ${MAX_ID[*]} "] != *" ${NEXT_ID} "* ]]; then
+                break;
+            fi
+            ((NEXT_ID ++))
+        done
+    fi
+else
+    MAX_ID=${CID}
+    NEXT_ID=${CID}
 fi
 
 if [[ -z "${APP_LISTEN_PORT}" ]]; then
@@ -102,9 +153,8 @@ else
     export DOCKER_OPTION_listen_port="-e=LISTEN_PORT=${APP_LISTEN_PORT}"
 fi
 
-if [[ ("${#exists[@]}" -eq 0) || ("${1}" = "start") ]]; then
+initialize_container() {
     # mount document root.
-
     [[ -n "${mail}" ]] && export DOCKER_OPTION_mailer="-e=MAIL_FORWARD_HOST=${mail}"
     [[ -n "${dns}" ]] && export DOCKER_OPTION_dns="-e=DNS_SERVER=${dns}"
 
@@ -183,25 +233,47 @@ if [[ ("${#exists[@]}" -eq 0) || ("${1}" = "start") ]]; then
     if [[ -n "${publishIp}" ]]; then
         export "DOCKER_OPTION_publish_port=--publish=${publishIp}:${port}:${APP_LISTEN_PORT}"
     fi
-fi
+}
 
 case "$1" in
     start)
         # get arguments for db, mail and dns
-
-        cmd "${APP_CONTAINER}${#exists[@]}" "${APP_IMAGE}" -d -w "${DOCUMENT_ROOT}" --  -- "${start}"
-        test -n "${db}" && cmd "${APP_CONTAINER}${#exists[@]}" "${APP_IMAGE}" host.sh add "dbhost" "${db}"
+        if [[ (-n ${CID})  && (${#exists[@]} -ne 0) ]]; then
+            >&2 echo "container already running"
+            exit 1
+        fi
+        initialize_container
+        if cmd "${APP_CONTAINER}${NEXT_ID}" "${APP_IMAGE}" -d -w "${DOCUMENT_ROOT}" --  -- "${start}"; then
+            if [[ -n "${db}" ]]; then
+                docker exec "${APP_CONTAINER}${NEXT_ID}" host.sh add "dbhost" "${db}"
+            fi
+        else
+            exit 1
+        fi
         ;;
     stop)
         if [[ ${#exists[@]} -gt 0 ]]; then
-            container="${APP_CONTAINER}$(( ${#exists[@]} - 1))"
-            docker stop "${container}"
+            docker stop "${APP_CONTAINER}${MAX_ID}"
+        fi
+        ;;
+    restart)
+        if [[ ${#exists[@]} -gt 0 ]]; then
+            ip="$(docker port "${APP_CONTAINER}${MAX_ID}" "${APP_LISTEN_PORT}")"
+            docker stop "${APP_CONTAINER}${MAX_ID}"
+            initialize_container
+            [[ -n "${ip}" ]] && export "DOCKER_OPTION_publish_port=--publish=${ip}:${APP_LISTEN_PORT}"
+
+            if cmd "${APP_CONTAINER}${MAX_ID}" "${APP_IMAGE}" -d -w "${DOCUMENT_ROOT}" --  -- "${start}"; then
+                if [[ -n "${db}" ]];then
+                    docker exec "${APP_CONTAINER}${MAX_ID}" host.sh add "dbhost" "${db}"
+                fi
+            else
+                exit 1
+            fi
         fi
         ;;
     stopall)
-        count=${#exists[@]}
-        while [[ ${count} -gt 0 ]]; do
-            container="${APP_CONTAINER}$(( --count ))"
+        for container in "${exists[@]}"; do
             docker stop "${container}"
         done
         ;;
@@ -213,38 +285,34 @@ case "$1" in
         fi
         ;;
     hostadd)
-        if [[ $# -lt 4 ]]; then
+        if [[ $# -lt 3 ]]; then
+            >&2 echo "usage: hostadd domain ip"
             exit 1
         fi
-        count=${#exists[@]}
-        start=0
-        while [[ ${start} -lt ${count} ]]; do
-            cmd "${APP_CONTAINER}${start}" "${APP_IMAGE}" host.sh add "$2" "$3"
-            ((start++))
+        for container in "${exists[@]}"; do
+            docker exec "${container}" host.sh add "$2" "$3"
         done
         ;;
     hostrm)
         if [[ $# -lt 4 ]]; then
+            >&2 echo "usage hostrm domain ip"
             exit 1
         fi
-
-        count=${#exists[@]}
-        start=0
-        while [[ ${start} -lt ${count} ]]; do
-            cmd "${APP_CONTAINER}${start}" "${APP_IMAGE}" host.sh remove "$2" "$3"
-            ((start++))
+        for container in "${exists[@]}"; do
+            docker exec "${container}" host.sh remove "$2" "$3"
         done
         ;;
     url)
-        id=${2:-0}
-        docker port "${APP_CONTAINER}${id}" "${APP_LISTEN_PORT}"
+        if [[ ${#exists[@]} -gt 0 ]]; then
+            docker port "${APP_CONTAINER}${MAX_ID}" "${APP_LISTEN_PORT}"
+        fi
         ;;
     *)
-        id=0
-        if [[ (-z "${1//[0-9]/}") && (${1} -lt ${#exists[@]}) ]]; then
-            id=${1}
-            shift
+        if [[ ${#exists[@]} -gt 0 ]]; then
+            docker exec -ti "${APP_CONTAINER}${MAX_ID}" "$@"
+        else
+            initialize_container
+            cmd "${APP_CONTAINER}${MAX_ID}" "${APP_IMAGE}" -ti -- -- "$@"
         fi
-        cmd "${APP_CONTAINER}${id}" "${APP_IMAGE}" -ti -- -ti -- "$@"
         ;;
 esac

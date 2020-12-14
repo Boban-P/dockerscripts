@@ -71,7 +71,7 @@ if [[ "${SSL_ON:-0}" != "0" ]]; then
         esac
         ACME_CONF="ServerAdmin ${SITE_ADMIN}
 MDCertificateAgreement accepted
-MDomain ${SITE_NAME}
+MDomain ${SITE_NAME} ${OTHER_SITE_NAMES}
 MDPrivateKeys RSA 4096
 ${CERTIFICATE_AUTHORITY:-"# "}
 MDStoreDir /etc/apache2/md
@@ -135,4 +135,4 @@ if [[ -n "${CHILD_BALANCER_URL}" ]]; then
     hostfile=$(sed 's%#CHILDBALANCER\(.*\)\(BalancerMember "http://\)\(BALANCER_URL\)\(.*\)%\1\2'"${CHILD_BALANCER_URL}"'\4\n#CHILDBALANCER\1\2\3\4%' <<< "${hostfile}")
 fi
 
-cat <<< "${hostfile}" >/etc/apache2/sites-enabled/default.conf
+cat <<< "${hostfile}" >/etc/apache2/sites-enabled/00_default.conf

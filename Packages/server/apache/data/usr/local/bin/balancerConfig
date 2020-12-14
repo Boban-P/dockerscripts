@@ -1,11 +1,76 @@
 #!/bin/bash
+unset ROUTER
+unset BALANCER
 
-export BALANCER="    RemoteIPHeader X-Client-IP
-    <Proxy \"balancer://childcluster\">
+generalbalancer=childcluster
+CURRENT_SITES=" ${SITE_ALIAS} "
+other_sites=()
+
+if [[ -n "${ALIAS_ROUTES}" ]]; then
+    for alias in $ALIAS_ROUTES; do
+
+        [[ " ${SITE_ALIAS} " != *" ${alias} "* ]] && echo "${alias} NOT IN CONFIGURED domains" && exit 1
+        [[ "${name}" == "${generalbalancer}" ]] && generalbalancer="_${generalbalancer}"
+        other_sites+=("${alias}")
+        CURRENT_SITES=${CURRENT_SITES/ ${alias} / }
+    done
+fi
+
+count=1
+for site in "${other_sites[@]}"; do
+    name="$(sed 's/[^a-zA-Z0-9_]/_/g' <<<"${site}")"
+    VHOST_CONF="
+    ServerName ${site}
+
+    <Proxy \"balancer://${name}\">
+        #SITEBALANCER BalancerMember \"http://BALANCER_URL\"
+    </Proxy>
+    ProxyPass        \"/\" \"balancer://${name}/\"
+    ProxyPassReverse \"/\" \"balancer://${name}/\"
+"
+
+hostfile="<VirtualHost *:${LISTEN_PORT}>${VHOST_CONF}</VirtualHost>
+"
+
+    if [[ "${SSL_ON:-0}" != "0" ]]; then
+
+        if [[ "${SSL_ONLY:-0}" != "0" ]]; then
+            hostfile="<VirtualHost *:${LISTEN_PORT}>
+    ServerName ${site}
+    RequestHeader unset X-FORWARDED-HTTPS
+    Redirect permanent / https://${site}/
+</VirtualHost>
+"
+        fi
+
+        hostfile+="<VirtualHost *:${LISTEN_SSLPORT}>
+${VHOST_CONF}
+    RequestHeader set X-FORWARDED-HTTPS yes
+    # SSLEngine on
+    <FilesMatch \"\\.(cgi|shtml|phtml|php)$\">
+        SSLOptions +StdEnvVars
+    </FilesMatch>
+</VirtualHost>
+"
+    fi
+    cat <<< "${hostfile}" >"/etc/apache2/sites-enabled/$(printf "%02d_%s.conf" ${count} ${name})"
+    ((count++))
+done
+
+SITE_ALIAS="${CURRENT_SITES}"
+OTHER_SITE_NAMES="${other_sites[*]}"
+
+BALANCER="    RemoteIPHeader X-Client-IP
+    <Proxy \"balancer://${generalbalancer}\">
 #CHILDBALANCER           BalancerMember \"http://BALANCER_URL\"
     </Proxy>
-    ProxyPass        \"/\" \"balancer://childcluster/\"
-    ProxyPassReverse \"/\" \"balancer://childcluster/\"
+    ProxyPass        \"/\" \"balancer://${generalbalancer}/\"
+    ProxyPassReverse \"/\" \"balancer://${generalbalancer}/\"
 "
+
+export BALANCER
+export OTHER_SITE_NAMES
+export SITE_ALIAS
+
 
 /usr/local/bin/vhosts

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -ae
+
 show_help() {
     echo "Usage: $0 [Options] command [args]"
     echo "Options:
@@ -13,6 +15,11 @@ commands:
     * args                          : execute a command in server.
 "
 }
+
+[[ ! -f "${DIR}/mail.conf" ]] && >&2 echo "mail server configuration file not found" && exit 1
+# include default values
+source "$(dirname "$(dirname "${BASH_SOURCE[0]}")")/mail.conf"
+source "${DIR}/mail.conf"
 
 args=()
 port=25

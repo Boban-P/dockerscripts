@@ -1,0 +1,22 @@
+#!/bin/bash
+
+source /phpversion.conf
+
+# enable remote debug in php fpm.
+for file in "/etc/php/${PHP_VERSION}/fpm/php.ini" "/etc/php/${PHP_VERSION}/cli/php.ini"
+do
+    if [[ "$(grep xdebug "$file" | wc -l)" -eq 0 ]]; then
+        cat >>"${file}" <<<"
+[XDebug]
+xdebug.remote_enable = 1
+xdebug.remote_autostart = 1
+xdebug.remote_port = ${REMOTE_DEBUG_PORT:-9000}
+xdebug.remote_host = ${REMOTE_DEBUG_HOST:-localhost}
+"
+    else
+        sed -i \
+            -e 's/^\(xdebug.remote_host\) .*$/\1 = '"${REMOTE_DEBUG_HOST:-localhost}"'/' \
+            -e 's/^\(xdebug.remote_port\) .*$/\1 = '"${REMOTE_DEBUG_PORT:-9000}"'/' \
+            "$file"
+    fi
+done

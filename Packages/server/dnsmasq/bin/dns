@@ -1,5 +1,6 @@
 #!/bin/bash
 
+set -ae
 show_help() {
     echo "Usage: $0 [options] command [args]"
     echo "Options:
@@ -14,6 +15,15 @@ Command:
     *  args                 : command to run in server
     "
 }
+
+[[ ! -f "${DIR}/dns.conf" ]] && >&2 echo "dns server configuration file not found" && exit 1
+# include default values
+source "$(dirname "$(dirname "${BASH_SOURCE[0]}")")/dns.conf"
+source "${DIR}/dns.conf"
+
+unset publishIp
+unset port
+unset move
 
 args=()
 port=53

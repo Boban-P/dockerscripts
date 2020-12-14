@@ -41,6 +41,21 @@ docker run -d --name balancer \
 To add nodes
 `docker exec balancer childBalancer.sh add {ip}:{port}`
 
+#
+
+**Node balancer with site spacific routing**
+```
+# by this configuration, sites will be issued single cerificate
+# if ssl is enbaled with an acme provider.
+docker run -d --name balancer \
+    -e SITE_NAME=example.com \
+    -e SITE_ALIAS="abc.com other.com www.example.com" \
+    -e ALIAS_ROUTES="abc.com other.com" \
+    -e CONFIG_TYPE=balancer \
+    bb526/server:apache
+```
+To add nodes
+`docker exec balancer siteBalancer.sh abc.com add {ip}:{port}`
 
 **static file server infront of php-fpm.**
 ```
@@ -73,5 +88,5 @@ docker run --name apacheserver --rm \
 To enable a module add `-e ENABLE_MODE_{module}=1` to docker run arguments. eg:- `-e ENABLE_MODE_rewrite=1`
 
 ## TODO ##
-- site name/alias based routing in balancer mode.
+- ~~site name/alias based routing in balancer mode.~~
 - priority for balancer nodes.

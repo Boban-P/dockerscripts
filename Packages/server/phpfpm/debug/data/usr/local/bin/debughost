@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# $1 host
+# $2 port optional
+
+source /phpversion.conf
+
+if [[ -n "${1}" ]]; then
+    echo "export REMOTE_DEBUG_HOST=${1}" >/dockery_do_run
+fi
+
+if [[ -n "${2}" ]]; then
+    echo "export REMOTE_DEBUG_PORT=${2}" >>/dockery_do_run
+fi
+
+/etc/init.d/php${PHP_VERSION}-fpm stop

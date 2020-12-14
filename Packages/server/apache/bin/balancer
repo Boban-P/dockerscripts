@@ -19,23 +19,35 @@ show_help() {
     -h | --http-port: http listen port on publish ip, default to 80
     -s | --ssl-port : ssl listen port on publish ip, default to 443 
 commands:
-    start   : if not started, start node balancer
-    stop    : stop running balancer server
-    reload  : reload balancer server,
-              useful to reaload after fetching ssl certificate
-    nodeadd : add a backend node
-        commandargs: ip:port
-    noderm  : remove a backend node
-        commandargs: ip:port
-    routeadd: Not implemented, add a routed node
-        commandargs: routeid ip:port
-    routedel: Not implemented, remove a routed node
-        commandargs: routeid ip:port
-    *       : custom command to run in balancer server, if not already
-              running, this command will create an instance to run the command
-        commandargs: see man page of command.
+    start           : if not started, start node balancer
+    stop            : stop running balancer server
+    reload          : reload balancer server,
+                        useful to reaload after fetching ssl certificate
+    nodeadd         : add a backend node
+        commandargs     : ip:port
+    noderm          : remove a backend node
+        commandargs     : ip:port
+    routeadd        : Add routing to route_aliases domain
+        commandargs     : domain ip:port [...ip:port]
+    routedel        : Remove route for domain in route_aliases
+        commandargs     : domain ip:port [...ip:port]
+    routeempty      : clear all routes for a domain in route_aliases
+    *               : custom command to run in balancer server, if not already
+                        running, this command will create an instance to run the command
+        commandargs     : see man page of command.
     "
 }
+
+[[ ! -f "${DIR}/balancer.conf" ]] && >&2 echo "node balancer configuration file not found" && exit 1
+# include default values
+source "$(dirname "$(dirname "${BASH_SOURCE[0]}")")/balancer.conf"
+source "${DIR}/balancer.conf"
+
+#removing commandline only arguments
+unset publishIp
+unset http_port
+unset ssl_port
+unset move
 
 args=()
 nodes=()
@@ -99,7 +111,6 @@ exists=$(docker ps -f 'name=^'"${BALANCER_CONTAINER}"'$' -q)
 
 if [[ -z "${exists}" ]]; then
 
-
     # get exposed port
     if [[ -z "${BALANCER_LISTEN_PORT}" ]]; then
         BALANCER_LISTEN_PORT=$(dockerinfo variable "${BALANCER_IMAGE}" LISTEN_PORT)
@@ -123,12 +134,14 @@ if [[ -z "${exists}" ]]; then
         if [[ "${BALANCER_SSL_ONLY:-0}" != "0" ]]; then
             export DOCKER_OPTION_ssl_only="-e=SSL_ONLY=1"
         fi
+
         if [[ -n "${BALANCER_CONFIG_PATH}" ]]; then
             if [[ ! -d "${BALANCER_CONFIG_PATH}" ]]; then
                 mkdir -p "${BALANCER_CONFIG_PATH}"
             fi
             export SITE_PATH_md_dir=type=bind,source=${BALANCER_CONFIG_PATH},destination=/etc/apache2/md
         fi
+
         if [[ -n "${BALANCER_CERTIFICATE_PATH}" ]]; then
             if [[ ! -d "${BALANCER_CERTIFICATE_PATH}" ]]; then
                 mkdir -p "${BALANCER_CERTIFICATE_PATH}"
@@ -158,6 +171,10 @@ if [[ -z "${exists}" ]]; then
             mkdir -p "${BALANCER_LOG_PATH}"
         fi
     fi
+
+    if [[ -n "${ALIAS_ROUTES}" ]]; then
+        export "DOCKER_OPTION_alias_route=-e=ALIAS_ROUTES=${ALIAS_ROUTES}"
+    fi
 fi
 
 case "$1" in
@@ -167,7 +184,7 @@ case "$1" in
             cmd "${BALANCER_CONTAINER}" "${BALANCER_IMAGE}" -d -e CONFIG_TYPE=balancer --  -- "${start}"
             while [[ $? -eq 0 ]]; do
                 sleep 1
-                docker exec "${BALANCER_CONTAINER}" bash -c '[[ -f /etc/apache2/sites-enabled/default.conf ]] && exit 1 || exit 0 '
+                docker exec "${BALANCER_CONTAINER}" bash -c '[[ -f /etc/apache2/sites-enabled/00_default.conf ]] && exit 1 || exit 0 '
             done
             for node in "${nodes[@]}"; do
                 cmd "${BALANCER_CONTAINER}" "${BALANCER_IMAGE}" childBalancer.sh add "${node}"
@@ -193,6 +210,22 @@ case "$1" in
             exit;
         fi
         docker exec "${BALANCER_CONTAINER}" childBalancer.sh remove "${2}"
+        ;;
+    routeadd)
+        [[ $# -lt 3 ]] && >&2 echo "Usage: routeadd domain ip:port" && exit 1
+        [[ -z "${exists}" ]] && >&2 echo "Container not running" && exit 1
+        [[ " ${ALIAS_ROUTES} " != *" $2 "* ]] && >&2 echo "domain $2 is not in ALIAS_ROUTES ${ALIAS_ROUTES}" && exit 1
+        docker exec "${BALANCER_CONTAINER}" siteBalancer.sh "$2" add "${@:3}"
+        ;;
+    routedel)
+        [[ $# -lt 3 ]] && >&2 echo "Usage: routeadd domain ip:port" && exit 1
+        [[ -z "${exists}" ]] && >&2 echo "Container not running" && exit 1
+        [[ "${ALIAS_ROUTES}" != *" $2 "* ]] && >&2 echo "domain is not in ALIAS_ROUTES" && exit 1
+        docker exec "${BALANCER_CONTAINER}" siteBalancer.sh "$2" remove "${@:3}"
+        ;;
+    routeclear)
+        [[ -z "${exists}" ]] && >&2 echo "Container not running" && exit 1
+        docker exec "${BALANCER_CONTAINER}" siteBalancer.sh "$2" empty
         ;;
     env)
         env

@@ -1,5 +1,6 @@
 #!/bin/bash
 
+set -ae
 # Application to manage database server
 # Usage: $0 start [[host-ip:]port]|stop
 #      : $0 startmaster|stopmaster
@@ -26,6 +27,19 @@ Command:
     *  args                 : command to run in server
     "
 }
+
+
+[[ ! -f "${DIR}/db.conf" ]] && >&2 echo "database server configuration file not found" && exit 1
+# include default values
+source "$(dirname "$(dirname "${BASH_SOURCE[0]}")")/db.conf"
+# include configuration values
+source "${DIR}/db.conf"
+
+unset publishIp
+unset port
+unset DB_MASTER_SERVER
+unset DB_MASTER_PORT
+unset move
 
 args=()
 while [[ $# -gt 0 ]]; do
@@ -126,12 +140,15 @@ if [[ -z "${exists}" ]]; then
             fi
         fi
 
-        mapfile -t dbs<<<"$(env | gerp '^DB_DATABASE_STATUS_')"
-        i=0
-        for db in "${dbs[@]}"; do
-            [[ -n "${db}" ]] && export "DOCKER_OPTION_db_$i=-e=REPLICATION_DB_${db#DB_DATABASE-STATUS_}"
-            ((i++))
-        done
+        if [[ -n "${DB_ENABLED_DATABASES}" ]]; then
+            for db in "${DB_ENALBED_DATABASE[@]}"; do
+                export "DOCKER_OPTION_db_${db}=-e=REPLICATION_DB_${db}=1"
+            done
+        elif [[ -n "${DB_DISABLED_DATABASES}" ]]; then
+            for db in "${DB_ENALBED_DATABASE[@]}"; do
+                export "DOCKER_OPTION_db_${db}=-e=REPLICATION_DB_${db}=0"
+            done
+        fi
         if [[ "${DB_REPLICATION_SERVER_ID}" -ge 1 ]]; then
             export DOCKER_OPTION_master="-e=MASTER_SERVER=${DB_MASTER_SERVER}"
             [[ -n "${DB_MASTER_PORT}" ]] && export DOCKER_OPTION_masterport="-e=MASTER_PORT=${DB_MASTER_PORT}"

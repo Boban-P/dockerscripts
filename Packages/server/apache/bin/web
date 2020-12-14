@@ -31,6 +31,16 @@ command:
     "
 }
 
+[[ ! -f "${DIR}/web.conf" ]] && >&2 echo "web server configuration file not found" && exit 1
+# include default values
+source "$(dirname "$(dirname "${BASH_SOURCE[0]}")")/web.conf"
+source "${DIR}/web.conf"
+
+unset publishIp
+unset http_port
+unset trust
+unset move
+
 args=()
 nodes=()
 while [[ $# -gt 0 ]]; do
@@ -80,6 +90,7 @@ DOCUMENT_ROOT="${DOCUMENT_ROOT:-"/home/www"}"
 WEB_LOG_LEVEL="${WEB_LOG_LEVEL:-"warn"}"
 WEB_LOG_PATH="${WEB_LOG_PATH:-"${DATA}/Webserver"}"
 WEB_REPO_BRANCH="${WEB_REPO_BRANCH:-"development"}"
+APP_PRIVATE_ROOT="${APP_PRIVATE_ROOT:-"${ASSET}/www"}"
 
 start="$(dockerinfo startup_command "${WEB_IMAGE}")"
 mapfile -t exists<<<"$(docker ps -f 'name=^'"${WEB_CONTAINER}"'\d*$' -q)"
@@ -116,11 +127,12 @@ if [[ (${#exists[@]} -eq 0) || ("${1}" = "start") ]]; then
         export DOCKER_OPTION_site_log_level="-e=SITE_LOG_LEVEL=${WEB_LOG_LEVEL}"
     fi
     # mounting assets as readonly
-    if [[ (-n ${APP_PRIVATE_ROOT}) && (-n ${DOCUMENT_ROOT}) ]]; then
+    if [[ -n ${DOCUMENT_ROOT} ]]; then
         dirs=(${WEB_DOCUMENT_ASSETS})
         for dir in "${dirs[@]}"; do
             # Mounting APP_PRIVATE_ROOT/DIR TO DOCUMENT_ROOT/DIR
-            export "SITE_PATH_$dir=type=bind,source='${APP_PRIVATE_ROOT%/}/${dir}',destination='${DOCUMENT_ROOT%/}/${dir}',readonly"
+            name="$(sed 's/[^a-zA-Z0-9_]/_/g' <<<"${dir}")"
+            export "SITE_PATH_$name=type=bind,source=${APP_PRIVATE_ROOT%/}/${dir},destination=${DOCUMENT_ROOT%/}/${dir},readonly"
         done
     fi
 
@@ -156,7 +168,7 @@ case "$1" in
         cmd "${container}" "${WEB_IMAGE}" -d --  -- "${start}"
         while [[ $? -eq 0 ]]; do
             sleep 1
-            docker exec "${container}" bash -c '[[ -f /etc/apache2/sites-enabled/default.conf ]] && exit 1 || exit 0 '
+            docker exec "${container}" bash -c '[[ -f /etc/apache2/sites-enabled/00_default.conf ]] && exit 1 || exit 0 '
         done
         for node in "${nodes[@]}"; do
             docker exec "${container}" appBalancer.sh add "${node}"
