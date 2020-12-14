@@ -1,5 +1,28 @@
 #!/bin/bash
 
+# allow tags
+cmdargs=()
+tag=
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -t|--tag)
+            tag="$2"
+            shift
+            ;;
+        *)
+            cmdargs+=("$1")
+            ;;
+    esac
+    shift
+done
+set -- "${cmdargs[@]}"
+
+if [[ -n "${tag}" ]]; then
+    image="bb526/vscode:${tag}"
+    docker inspect --type=image "${image}" >/dev/null 2>&1 || image=""
+fi
+
+image=${image:-"bb526/vscode"}
 if [[ (! -z "${1}") && ("${1}" != "-"*) && (-d "${1}") ]]; then
     dir="$(realpath -s "${1}")"
     shift 1
@@ -16,8 +39,7 @@ config_dir=${DATA}/
 config_dir=/home/developer/.config/Code
 
 args=(code -n -w ${source_dir})
-options=(-d)
-image="bb526/vscode"
+option=(-ti)
 home_dir="${DATA}/home"
 config_dir="${home_dir}/.config/${dir_code}"
 for line in $(env | grep -e '^code_'); do
@@ -31,7 +53,7 @@ fi
 
 if [[ $# -eq 0 ]]; then
     set -- "${args[@]}"
-    option="${options[@]}"
+    option=("-d")
 fi
 
 export SITE_PATH_home=type=bind,source="${home_dir}",destination=/home/developer
@@ -44,6 +66,6 @@ case "${1}" in
         echo "${home_dir}"
         ;;
     *)
-        cmd "${name}" "${image}" ${option} -- ${option} -- "$@"
+        cmd "${name}" "${image}" "${option[@]}" -- "${option[@]}" -- "$@"
         ;;
 esac

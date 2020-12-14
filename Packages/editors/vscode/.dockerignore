@@ -1,6 +1,7 @@
 Data/*
 Asset/*
 bin/*
+php/*
 *.deb
 *.tar.gz
 *.tgz

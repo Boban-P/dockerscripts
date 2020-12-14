@@ -1,0 +1,10 @@
+NAME=vscode:php
+
+DEPENDS=
+PACKAGES=../
+
+# APPLICATION
+
+ENABLE_GUI=1
+DOCKER_OPTION_shm_size=--shm-size=3gb
+
