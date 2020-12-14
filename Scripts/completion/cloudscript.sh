@@ -60,6 +60,9 @@ _cloudscriptCompletion() {
 				fi
 			fi
 		fi
+		if [[ (${#COMPREPLY[@]} -eq 1) && (-z "${COMPREPLY[0]}") ]]; then
+			COMPREPLY=()
+		fi
 		return
 	fi
     cloud_dir="$(dirname "$(realpath "$(/usr/bin/which %%cloudscript%%)")")"
@@ -67,6 +70,9 @@ _cloudscriptCompletion() {
 	if [[ ${COMP_CWORD} -eq 2 ]]; then
 		IFS=: read -r -a path<<<"$(%%cloudscript%% "${COMP_WORDS[1]}" script_path 2>/dev/null)${cloud_dir}/function"
 		mapfile -t COMPREPLY<<<"$(/usr/bin/uniq <(/usr/bin/find "${path[@]}" -name "${COMP_WORDS[2]}*" -maxdepth 1 -executable -type f -printf '%f\n' 2>/dev/null | /usr/bin/sort))"
+		if [[ (${#COMPREPLY[@]} -eq 1) && (-z "${COMPREPLY[0]}") ]]; then
+			COMPREPLY=()
+		fi
 		return
 	fi
 

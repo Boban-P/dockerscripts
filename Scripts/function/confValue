@@ -1,0 +1,12 @@
+#!/bin/bash
+
+if [[ -n "$1" ]]; then
+    value="$(env | grep '^'${1}'=')"
+    value=${value#${1}=}
+fi
+if [[ -n "$value" ]]; then
+    echo $value;
+else
+    >&2 echo "NOT a configuration value"
+    exit 1
+fi

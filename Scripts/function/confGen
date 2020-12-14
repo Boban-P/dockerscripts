@@ -1,0 +1,73 @@
+#!/bin/bash
+show_help() {
+    echo "Usage: $0 [options] command"
+    echo " Create command configuration file if not exists or print to stdout
+Options:
+    --help      : print this help and exit
+    --print     : print the conf file to stdout
+    --force     : save conf file, if conf file exists overrite. discarded if update is mentioned
+    --update    : create conf file if exists or update with not existing default values.
+    "
+}
+
+args=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --help)
+            show_help
+            exit
+            ;;
+        --print)
+            PRINT_FILE=1
+            ;;
+        --force)
+            FORCE_WRITE=1
+            ;;
+        --update)
+            UPDATE_CONF=1
+            ;;
+        *)
+            args+=("$1")
+            ;;
+    esac
+    shift
+done
+set -- "${args[@]}"
+
+CMD="$1"
+
+[[ -z "${CMD}" ]] && >&2 echo "Require command to get conf file" && exit 1
+
+file="$(which "$1")"
+
+[[ -z "${file}" ]] && >&2 echo "command $CMD not found" && exit 1
+conf_file="$(realpath -s "$(dirname "$file")")/../${CMD}.conf"
+
+[[ ! -f "${conf_file}" ]] && >&2 echo "configuration file not found for command $CMD" && exit 1
+
+conf="$(sed -e '/^$/d' -e '/^#/d' "${conf_file}")"
+# comment out defautl values
+conf="$(sed -e 's/^\(.\+=.\+\)$/#\1/' <<<"$conf")"
+
+target_file="${DIR}/${CMD}.conf" 
+if [[ -f "${target_file}" ]]; then
+    if [[ -n "${UPDATE_CONF}" ]]; then
+        mapfile -t newValues<<<"$(sed -e '/^#/d' -e 's/=$//' <<<"${conf}")"
+        if [[ (${#newValues[@]} -eq 1) && (-z "${newValues[0]}") ]]; then
+            newValues=()
+        fi
+        for var in "${newValues[@]}"; do
+            if [[ -z "$(grep "^${var}" "${target_file}")" ]]; then
+                echo "${var}=" >>"${target_file}"
+            fi
+        done
+    elif [[ -n "${FORCE_WRITE}" ]]; then
+        cat <<<"${conf}" >"${DIR}/${CMD}.conf"
+    else
+        PRINT_FILE=1
+    fi
+else
+    cat <<<"${conf}" >"${DIR}/${CMD}.conf"
+fi
+
+[[ -n "${PRINT_FILE}" ]] && printf "%s\n" "${conf}"

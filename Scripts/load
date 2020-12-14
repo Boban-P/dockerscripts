@@ -133,4 +133,5 @@ if [[ -z "${path}" ]]; then
 fi
 
 PATH="${SCRIPT_DIR}/function:${path}${__OLD_PATH}"
+export PATH
 "${_cmd_file}" "$@"
