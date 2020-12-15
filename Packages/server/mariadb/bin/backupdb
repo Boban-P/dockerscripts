@@ -1,0 +1,51 @@
+#!/bin/bash
+
+show_help() {
+    echo "Usage $0 [--restore]
+        make a backup of current database, with --restore it makes it latest restore point.
+"
+}
+
+
+[[ ! -f "${DIR}/db.conf" ]] && >&2 echo "database server configuration file not found" && exit 1
+# include default values
+source "$(dirname "$(dirname "${BASH_SOURCE[0]}")")/db.conf"
+# include configuration values
+source "${DIR}/db.conf"
+
+[[ -n "${S3_BACKUPT_PATH}" ]] && S3_BACKUPT_PATH="s3://${S3_BACKUPT_PATH#s3://}"
+
+[[ -z "${DB_CONTAINER}" ]] && >&2 echo "container unknown" && exit 1
+[[ -z "$(docker ps -q -f 'name=^'"${DB_CONTAINER}"'$')" ]] && >&2 echo "container not running" && exit 1
+
+[[ -z "${DB_NAME}" ]] && >&2 echo "DATABASE NAME UNKNOWN" && exit 1
+
+[[ -z "${LOCAL_BACKUP_PATH}" ]] && >&2 echo "Backup path not found" && exit 1
+
+if [[ ! -d "${LOCAL_BACKUP_PATH}" ]]; then
+    if [[ -n "${S3_BACKUPT_PATH}" ]]; then
+        s3cmd -rp get "${S3_BACKUP_PATH%/}/.git/" "${LOCAL_BACKUP_PATH%/}/.git/" || exit 1
+    else
+        mkdir -p "${LOCAL_BACKUP_PATH}"
+    fi
+else
+    if [[ -n "${S3_BACKUPT_PATH}" ]];then
+        (! s3cmd sync --delete-removed "${S3_BACKUP_PATH%/}/.git/" "${LOCAL_BACKUP_PATH%/}/.git/") && echo "error in sync" && exit 1
+    fi
+fi
+
+if [[ ! -d "${LOCAL_BACKUP_PATH}/.git" ]]; then
+    git -C "${LOCAL_BACKUP_PATH}" init || exit 1
+    git -C "${LOCAL_BACKUP_PATH}" config --add user.name "dbbackupscript"
+    git -C "${LOCAL_BACKUP_PATH}" config --add user.email "dbbackupscript@mahisham.in"
+fi
+
+docker exec "${DB_CONTAINER}" mysqldump --opt --skip-dump-date --order-by-primary ${DB_NAME} | sed 's/),(/),\n(/g' >"${LOCAL_BACKUP_PATH%/}/backup.sql"
+git -C "${LOCAL_BACKUP_PATH}" add backup.sql
+git -C "${LOCAL_BACKUP_PATH}" commit -m "updating backup"
+
+s3cmd sync --delete-removed "${LOCAL_BACKUP_PATH%/}/.git/" "${S3_BACKUP_PATH%/}/.git/" || exit 1
+
+if [[ ("$1" == "--restore") && (-n "${S3_SQL_FILE}") ]]; then
+    s3cmd put "${LOCAL_BACKUP_PATH%/}/backup.sql" "s3://${S3_SQL_FILE#s3://}" || exit 1
+fi

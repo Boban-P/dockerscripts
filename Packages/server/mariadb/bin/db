@@ -117,7 +117,7 @@ else
     DB_DATA_DIR="${DB_DATA_DIR%/}/standalone"
 fi
 
-exists=$(docker ps -q -f 'name=^'"${DB_CONTAINER}"'$')
+exists="$(docker ps -q -f 'name=^'"${DB_CONTAINER}"'$')"
 start="$(dockerinfo startup_command "${DB_IMAGE}")"
 
 
@@ -169,23 +169,6 @@ case "$1" in
             [[ -n "${publishIp}" ]] && export DOCKER_OPTION_publish="--publish=${publishIp}:${port}:${DB_PORT}"
 
             cmd "${DB_CONTAINER}" "${DB_IMAGE}" -d -- -- "${start}"
-            
-            # Create database and user if not already exists.
-            if [[ (! -d "${DB_DATA_DIR}/${DB_NAME}") && ("${DB_REPLICATION_SERVER_ID:-0}" = [0,1] ) ]]; then
-                # wait for  /var/run/mysqld/mysqld.sock to appear
-                docker exec "${DB_CONTAINER}" ls /var/run/docker_initialized >/dev/null 2>&1 && docker exec "${DB_CONTAINER}" ls /var/run/mysqld/mysqld.sock >/dev/null 2>&1
-                while [[ $? -ne 0 ]]; do
-                    sleep 1
-                    docker exec "${DB_CONTAINER}" ls /var/run/docker_initialized >/dev/null 2>&1 && docker exec "${DB_CONTAINER}" ls /var/run/mysqld/mysqld.sock >/dev/null 2>&1
-                done
-
-                # Create database
-                [[ -n "${DB_NAME}" ]] && docker exec "${DB_CONTAINER}" /createdb "${DB_NAME}"
-                if [[ (-n "${DB_USER}") && (-n "${DB_PASSWORD}") ]]; then
-                    docker exec "${DB_CONTAINER}" /createUser "${DB_USER}" '%' "${DB_PASSWORD}"
-                    [[ -n "${DB_NAME}" ]] && docker exec "${DB_CONTAINER}" /execute 'GRANT ALL ON `'"${DB_NAME}"'`.*'" TO "'`'"${DB_USER}"'`'
-                fi
-            fi
         fi
         ;;
     stop)

@@ -1,0 +1,113 @@
+#!/bin/bash
+
+set -a
+# Application to manage database server
+# Usage: $0 start [[host-ip:]port]|stop
+#      : $0 startmaster|stopmaster
+#      : $0 startslave id masterip|stopslave
+#      : $0 addSlave slaveip
+
+show_help() {
+    echo "Usage $0 [options] command [args]
+    Create Database, user and execute backup script.
+    "
+    echo "Options:
+    --help                  : show this help and exit
+    --force                 : force installation, may remove existing tables.
+    --latest                : get latest version from storage
+    --no-install            : do not restore database from backup sql script,
+                                only make sure database and user is created 
+                                and user is given access to database
+
+Command:
+    start                   : Start server
+    stop                    : Stop server
+    url                     : server ip
+    *  args                 : command to run in server
+    "
+}
+
+[[ ! -f "${DIR}/db.conf" ]] && >&2 echo "database server configuration file not found" && exit 1
+# include default values
+source "$(dirname "$(dirname "${BASH_SOURCE[0]}")")/db.conf"
+# include configuration values
+source "${DIR}/db.conf"
+
+unset FAILED
+unset NO_INSTALL
+unset LATEST
+unset FORCE
+
+args=()
+while [[ $#  -gt 0 ]]; do
+    case "$1" in
+        --help)
+            show_help
+            exit
+            ;;
+        --force)
+            FORCE=1
+            ;;
+        --latest)
+            LATEST=1
+            ;;
+        --no-install)
+            NO_INSTALL=1
+            ;;
+    esac
+    shift
+done
+set -- "${args[@]}"
+
+[[ -z "${DB_CONTAINER}" ]] && >&2 echo "container unknown" && exit 1
+[[ -z "$(docker ps -q -f 'name=^'"${DB_CONTAINER}"'$')" ]] && >&2 echo "container not running" && exit 1
+
+# Create database
+[[ -z "${DB_NAME}" ]] && >&2 echo "DATABASE NAME UNKNOWN" && exit 1
+if ! docker exec "${DB_CONTAINER}" /createdb "${DB_NAME}"; then
+    [[ -z "${FORCE}" ]] && >&2 echo "Database already exists to restore from file use --force option" && exit 1
+fi
+
+if [[ (-n "${DB_USER}") && (-n "${DB_PASSWORD}") ]]; then
+    docker exec "${DB_CONTAINER}" /createUser "${DB_USER}" '%' "${DB_PASSWORD}"
+    docker exec "${DB_CONTAINER}" /execute 'GRANT ALL ON `'"${DB_NAME}"'`.*'" TO "'`'"${DB_USER}"'`'
+fi
+
+[[ -n "${NO_INSTALL}" ]] && exit 0
+
+if [[ (-n "${LATEST}") && (-n "${S3_BACKUPT_PATH}") ]]; then
+    s3cmd sync --delete-removed "${S3_BACKUP_PATH%/}/" "${LOCAL_BACKUP_PATH%/}/" || exit 1
+fi
+
+[[ -z "${LOCAL_BACKUP_PATH}" ]] && >&2 echo "Backup path not found" && exit 1
+
+if [[ ! -d "${LOCAL_BACKUP_PATH}" ]]; then
+    if [[ -n "${S3_BACKUPT_PATH}" ]]; then
+        s3cmd -rp get "${S3_BACKUP_PATH%/}/" "${LOCAL_BACKUP_PATH%/}/" || exit 1
+    else
+        mkdir -p "${LOCAL_BACKUP_PATH}"
+    fi
+fi
+
+if [[ ( (! -f "${LOCAL_BACKUP_PATH%/}/install.sql") || (-n "${LATEST}") ) && (-n "${S3_SQL_FILE}") ]]; then
+    s3cmd get "s3://${S3_SQL_FILE#s3://}" "${LOCAL_BACKUP_PATH%/}/install.sql"
+fi
+
+# https://unix.stackexchange.com/a/26290
+# to store the file in database, backup scripts divide sql statements into multiple lines.
+# this is a crude approch, and currupt data if field values contain the pattern ),(
+# To ovecome the issue, the lines needs to be joined before restoring.
+if [[ -f "${LOCAL_BACKUP_PATH%/}/install.sql" ]]; then
+    file="$(mktemp)"
+    sed '/),$/{$!{N;s/),\n(/),(/;ty;P;D;:y}}' "${LOCAL_BACKUP_PATH%/}/install.sql" >"${file}"
+    docker cp "${file}" "${DB_CONTAINER}:/install.sql"
+    unlink "${file}"
+    if ! docker exec "${DB_CONTAINER}" bash -c "cat /install.sql | mysql ${DB_NAME}"; then
+        FAILED=1
+    fi
+    docker exec "${DB_CONTAINER}" unlink /install.sql
+    [[ -n "${FAILED}" ]] && exit 1
+    echo "database installed successfully"
+else
+    >&2 echo "installation file not found" && exit 1
+fi
