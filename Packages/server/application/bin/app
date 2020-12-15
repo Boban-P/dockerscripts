@@ -30,7 +30,10 @@ Commands:
     stop                : stop an application server specified by --id,
     stopall             : stop all instance of application server
     url                 : get ip address of application server specified by --id
-    update              : update application source
+    update              : update application source from git repository app_asset_repo
+    backup              : backup private_root directory to private_root_backupt
+    saveState           : update the backup to private_root_source
+    restore             : restore application data files from last saved state.
     hostadd domain ip   : add hosts file entry for all application server
     hostrm domain ip    : remove hosts file entry from all application server
     *                   : execute custom command in application server, server is choosem by --id parameter.
@@ -116,7 +119,6 @@ APP_DEBUG_MAP_PORT="${APP_DEBUG_MAP_PORT:-0}"
 DOCUMENT_ROOT="${DOCUMENT_ROOT:-"/home/www"}"
 APP_WRITE_MOUNT="${APP_WRITE_MOUNT:-1}"
 
-start="$(dockerinfo startup_command "${APP_IMAGE}")"
 mapfile -t exists <<< "$(docker ps -f 'name=^'"${APP_CONTAINER}${CID:-\d*}"'$' --format '{{.Names}}')"
 
 if [[ (${#exists[@]} -eq 1) && (-z "${exists[0]}") ]]; then
@@ -139,7 +141,7 @@ if [[ -z "${CID}" ]]; then
             if [[ " ${MAX_ID[*]} "] != *" ${NEXT_ID} "* ]]; then
                 break;
             fi
-            ((NEXT_ID ++))
+            ((++NEXT_ID))
         done
     fi
 else
@@ -238,6 +240,7 @@ initialize_container() {
 case "$1" in
     start)
         # get arguments for db, mail and dns
+        start="$(dockerinfo startup_command "${APP_IMAGE}")"
         if [[ (-n ${CID})  && (${#exists[@]} -ne 0) ]]; then
             >&2 echo "container already running"
             exit 1
@@ -283,6 +286,30 @@ case "$1" in
         else
             test -n "${APP_ASSET_REPO}" && (git clone --depth 1 -b "${APP_REPO_BRANCH}" "${APP_ASSET_REPO}" "${APP_ASSET}" || rm -rf "${APP_ASSET}")
         fi
+        ;;
+    backup)
+        echo backup called
+        [[ ! -d  "${APP_PRIVATE_ROOT}" ]] && >&2 echo "nothing to backup" && exit 1
+        if [[ -n "${APP_PRIVATE_ROOT_BACKUP}" ]]; then
+            s3cmd sync --delete-removed "${APP_PRIVATE_ROOT_BACKUP%/}/.git/" "${APP_PRIVATE_ROOT%/}/.git/"
+        fi
+        if [[ ! -d "${APP_PRIVATE_ROOT%/}/.git" ]]; then
+            git -C "${APP_PRIVATE_ROOT}" init
+            git -C "${APP_PRIVATE_ROOT}" config --add user.name "applicationscript"
+            git -C "${APP_PRIVATE_ROOT}" config --add user.email "applicationscript@mahisham.in"
+        fi
+
+        git -C "${APP_PRIVATE_ROOT}" add -A
+        git -C "${APP_PRIVATE_ROOT}" commit -m "application backup"
+        s3cmd sync --delete-removed "${APP_PRIVATE_ROOT%/}/.git/" "${APP_PRIVATE_ROOT_BACKUP%/}/.git/"
+        ;;
+    saveState)
+        [[ ! -d  "${APP_PRIVATE_ROOT}" ]] && >&2 echo "nothing to backup" && exit 1
+        s3cmd sync --rexclude "^\.git" --delete-removed "${APP_PRIVATE_ROOT%/}/" "${APP_PRIVATE_ROOT_SOURCE%/}/"
+        ;;
+    restore)
+        [[ ! -d  "${APP_PRIVATE_ROOT}" ]] && >&2 echo "nothing to backup" && exit 1
+        s3cmd sync --rexclude "^\.git" --delete-removed "${APP_PRIVATE_ROOT_SOURCE%/}/" "${APP_PRIVATE_ROOT%/}/"
         ;;
     hostadd)
         if [[ $# -lt 3 ]]; then
