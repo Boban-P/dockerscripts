@@ -46,7 +46,6 @@ case "$1" in
         balancer stop
         web stop
         app stop
-        db stop
         dns stop
         mail stop
         ;;
@@ -54,14 +53,12 @@ case "$1" in
         balancer stop
         web stopall
         app stopall
-        db stop
         dns stop
         mail stop
         ;;
     *)
         mail --publiship ${ip} --port 25 start
         dns --publiship ${ip} --port 53 start
-        db --publiship ${ip} --port 3306 start
         app --db ${ip} --dns ${ip} --mail ${ip} --publiship ${ip} start
         web --app "$(app url 0)" --publiship "${ip}" --trust "${publicip}" start
         balancer --node "$(web url 0)" --publiship "${publicip}" start

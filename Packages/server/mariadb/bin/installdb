@@ -8,7 +8,7 @@ set -a
 #      : $0 addSlave slaveip
 
 show_help() {
-    echo "Usage $0 [options] command [args]
+    echo "Usage $0 [options] 
     Create Database, user and execute backup script.
     "
     echo "Options:
@@ -19,11 +19,6 @@ show_help() {
                                 only make sure database and user is created 
                                 and user is given access to database
 
-Command:
-    start                   : Start server
-    stop                    : Stop server
-    url                     : server ip
-    *  args                 : command to run in server
     "
 }
 
@@ -69,8 +64,9 @@ if ! docker exec "${DB_CONTAINER}" /createdb "${DB_NAME}"; then
 fi
 
 if [[ (-n "${DB_USER}") && (-n "${DB_PASSWORD}") ]]; then
-    docker exec "${DB_CONTAINER}" /createUser "${DB_USER}" '%' "${DB_PASSWORD}"
-    docker exec "${DB_CONTAINER}" /execute 'GRANT ALL ON `'"${DB_NAME}"'`.*'" TO "'`'"${DB_USER}"'`'
+    if docker exec "${DB_CONTAINER}" /createUser "${DB_USER}" '%' "${DB_PASSWORD}" 2>/dev/null ; then
+        docker exec "${DB_CONTAINER}" /execute 'GRANT ALL ON `'"${DB_NAME}"'`.*'" TO "'`'"${DB_USER}"'`'
+    fi
 fi
 
 [[ -n "${NO_INSTALL}" ]] && exit 0
