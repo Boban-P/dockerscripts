@@ -26,6 +26,7 @@ show_help() {
                             default to largest running container id.
                             or minimum possible id in case of start command.
 Commands:
+    initialize          : initialize source code configuration and assets of application
     start               : start new application server
     stop                : stop an application server specified by --id,
     stopall             : stop all instance of application server
@@ -157,8 +158,13 @@ fi
 
 initialize_container() {
     # mount document root.
-    [[ -n "${mail}" ]] && export DOCKER_OPTION_mailer="-e=MAIL_FORWARD_HOST=${mail}"
-    [[ -n "${dns}" ]] && export DOCKER_OPTION_dns="-e=DNS_SERVER=${dns}"
+    if [[ -n "${mail}" ]]; then
+        export DOCKER_OPTION_mailer="-e=MAIL_FORWARD_HOST=${mail}"
+    fi
+    if [[ -n "${dns}" ]]; then
+        export DOCKER_OPTION_dns="-e=DNS_SERVER=${dns}"
+    fi
+    [[ -d "${APP_ASSET}" ]] && [[ -n "${DOCUMENT_ROOT}" ]]
 
     if [[ -n "${APP_WRITE_MOUNT//0/}" ]]; then
         export SITE_PATH_document_root=type=bind,source="${APP_ASSET}",destination="${DOCUMENT_ROOT}"
@@ -167,39 +173,16 @@ initialize_container() {
     fi
 
     # create document root if it do not exits.
-    if [[ ! -d "${APP_ASSET}" ]]; then
-        mkdir -p "${APP_ASSET}"
-        test -n "${APP_ASSET_REPO}" && (git clone --depth 1 -b "${APP_REPO_BRANCH}" "${APP_ASSET_REPO}" "${APP_ASSET}" || rm -rf "${APP_ASSET}")
-    fi
 
-    if [[ (-n "${APP_PRIVATE_ROOT}") && (! -d "${APP_PRIVATE_ROOT}") ]]; then
-        mkdir -p "${APP_PRIVATE_ROOT}"
-    fi
+    if [[ (-n ${APP_PRIVATE_ROOT}) ]]; then
+        [[ -d "${APP_PRIVATE_ROOT}" ]]
 
-    if [[ (-n ${APP_PRIVATE_ROOT}) && (-n ${DOCUMENT_ROOT}) ]]; then
         dirs=(${APP_DOCUMENT_ASSETS} ${APP_PRIVATE_ASSETS})
         for dir in "${dirs[@]}"; do
             # Mounting APP_PRIVATE_ROOT/DIR TO DOCUMENT_ROOT/DIR
             name="$(sed 's/[^a-zA-Z0-9_]/_/g' <<<"${dir}")"
             export "SITE_PATH_${name}=type=bind,source=${APP_PRIVATE_ROOT%/}/${dir},destination=${DOCUMENT_ROOT%/}/${dir}"
         done
-        if [[ (-n "${APP_PRIVATE_RESOURCE_TYPE}") && (-n "${APP_PRIVATE_ROOT_SOURCE}") ]]; then
-        
-            case "${APP_PRIVATE_RESOURCE_TYPE}" in
-            s3)
-                [[ -d  "${APP_PRIVATE_ROOT}" ]] || mkdir -p "${APP_PRIVATE_ROOT}"
-                # copy files if directory is empty.
-                [[ -n "$(find "${APP_PRIVATE_ROOT}" -maxdepth 0 -type d -empty 2>/dev/null)" ]] && \
-                    s3cmd -rp get "${APP_PRIVATE_ROOT_SOURCE%/}/" "${APP_PRIVATE_ROOT%/}/"
-                ;;
-            nfs)
-                [[ -d  "${APP_PRIVATE_ROOT}" ]] || mkdir -p "${APP_PRIVATE_ROOT}"
-                # mount directory if not already mounted.
-                mountpoint -q "${APP_PRIVATE_ROOT}" && \
-                    sudo mount -t nfs "${APP_PRIVATE_ROOT_SOURCE}" ${APP_PRIVATE_ROOT}
-                ;;
-            esac
-        fi
     fi
     
     if [[ "${APP_DEBUG_MAP_PORT:-0}" == "1" ]]; then
@@ -238,6 +221,32 @@ initialize_container() {
 }
 
 case "$1" in
+    initialize)
+        if [[ (-n "${APP_ASSET_REPO}") && (-n "${APP_ASSET}") ]]; then
+            [[ -d  "${APP_ASSET}" ]] || mkdir -p "${APP_ASSET}"
+            if [[ -d "${APP_ASSET}/.git" ]]; then
+                git -C "${APP_ASSET}" pull
+            else
+                git clone --depth 1 -b "${APP_REPO_BRANCH:-main}" "${APP_ASSET_REPO}" "${APP_ASSET}"
+            fi
+        fi
+        if [[ (-n  "${APP_PRIVATE_ROOT}") && (-n "${APP_PRIVATE_RESOURCE_TYPE}") && (-n "${APP_PRIVATE_ROOT_SOURCE}") ]]; then
+            [[ -d  "${APP_PRIVATE_ROOT}" ]] || mkdir -p "${APP_PRIVATE_ROOT}"
+            case "${APP_PRIVATE_RESOURCE_TYPE}" in
+            s3)
+                # synchronize with upstream
+                # .git directory is for backup, snapshot shouldnt  include it.
+                s3cmd sync --rexclude "^\.git" --delete-removed "${APP_PRIVATE_ROOT_SOURCE%/}/" "${APP_PRIVATE_ROOT%/}/"
+                ;;
+            nfs)
+                # mount directory if not already mounted.
+                if ! mountpoint -q "${APP_PRIVATE_ROOT}"; then
+                    sudo mount -t nfs "${APP_PRIVATE_ROOT_SOURCE}" "${APP_PRIVATE_ROOT}"
+                fi
+                ;;
+            esac
+        fi
+        ;;
     start)
         # get arguments for db, mail and dns
         start="$(dockerinfo startup_command "${APP_IMAGE}")"
