@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 show_help() {
     echo "$(tput bold)Usage:$(tput sgr0) $(basename "$(realpath "${BASH_SOURCE[0]}")") [option]"
     echo "$(tput bold)Options:$(tput sgr0)"
@@ -7,29 +9,89 @@ show_help() {
     echo $'\t'"--no-recurse"$'\t'"do not build child"
     echo $'\t'"--recurse"$'\t'"build children recursively"
     echo $'\t'"--depth"$'\t'"test upto this depth for building children"
+    echo $'\t'"--gcloud"$'\t'"build with gcloud build "
+    echo $'\t'"--project projectid"$'\t'"gcloud project id"
     echo $'\t'"-h|--help"$'\t'"print this help and exit"
 }
 
 
-function docker_build() {
+function generic_build() {
     # run pre build script
     prebuildscript="${DIR}/prebuild.sh"
     if [[ (-f "${prebuildscript}") && (-x "${prebuildscript}") ]]; then
-        ${prebuildscript} || exit $?
+        ${prebuildscript}
     fi
-    # make build_arg
-    args=()
-    mapfile -t lines<<<"$(env | grep -e '^INSTALL_ARG_')"
-    for line in "${lines[@]}"; do
-        [[ -n "$line" ]] && args+=(--build-arg "${line/#INSTALL_ARG_/}")
-    done
-    DOCKER_BUILDKIT=1 docker build "${args[@]}" -t "${NAME}" "${DIR}" || exit $?
+    ${BUILD_COMMAND}
     postbuildscript="${DIR}/postbuild.sh"
     if [[ (-f ${postbuildscript}) && (-x "${postbuildscript}") ]]; then
         ${postbuildscript}
     fi
 }
 
+function docker_build() {
+    # make build_arg
+    args=()
+    mapfile -t lines<<<"$(env | grep -e '^INSTALL_ARG_')"
+    if [[ ("${#lines[@]}" -gt 1) || (-n "${lines[0]}") ]]; then
+        for line in "${lines[@]}"; do
+            args+=(--build-arg "${line/#INSTALL_ARG_/}")
+        done
+    fi
+    DOCKER_BUILDKIT=1 docker build "${args[@]}" -t "${NAME}" "${DIR}"
+}
+
+function mkgconf() {
+    tag="$1"
+    shift
+    DOCKER_DIR="$1"
+    shift
+
+buildargs=(build -t "${tag}")
+substitutes=()
+for item in "$@"; do
+    buildargs+=(--build-arg ${item%%=*}=\${_${item%%=*}})
+    substitutes+=("_${item%%=*}: \"${item#*=}\"")
+done
+
+mapfile -t images<<<"$(grep '^FROM ' "${DOCKER_DIR}/Dockerfile" | sed 's/^FROM \([^ ]*\)/\1/' | sort | uniq)"
+if [[ ("${#images[@]}" -eq 1) && (-z "${images[0]}") ]]; then
+    exit 1
+fi
+docker="$(cat "${DOCKER_DIR}/Dockerfile")"
+altered=0
+for image in "${images[@]}"; do
+    if gcloud container images describe "gcr.io/${PROJECT}/${image}" >/dev/null 2>&1; then
+        docker="$(printf "%s\n" "${docker}" | sed 's@^FROM '${image}'@FROM gcr.io/'${PROJECT}/${image}'@')"
+    fi
+done
+
+printf "%s\n" "${docker}" >"${DOCKER_DIR}/gcloud.Dockerfile"
+buildargs+=(--file "${DOCKER_DIR}/gcloud.Dockerfile")
+
+printf "%s" "steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: [$(printf "'%s',\n         " "${buildargs[@]}")'${DOCKER_DIR}']
+substitutions:$(printf "\n    %s" "${substitutes[@]}")
+images: [
+    '${tag}'
+]
+"
+}
+
+function gcloud_build() {
+    TAG="gcr.io/${PROJECT}/${NAME}"
+    # make build_arg
+    args=()
+    mapfile -t lines<<<"$(env | grep -e '^INSTALL_ARG_')"
+    if [[ ("${#lines[@]}" -gt 1) || (-n "${lines[0]}") ]]; then
+        for line in "${lines[@]}"; do
+            args+=("${line/#INSTALL_ARG_/}")
+        done
+    fi
+    cd ${DIR} && gcloud builds submit --config <(mkgconf "${TAG}" "." "${args[@]}")
+}
+
+TARGET="local"
 DEPTH=
 args=()
 while [[ $# -gt 0 ]]; do
@@ -51,6 +113,13 @@ while [[ $# -gt 0 ]]; do
             DEPTH=$(( 0 + ${2} ))
             shift 1
             ;;
+        --gcloud)
+            TARGET="gcloud"
+            ;;
+        --project)
+            PROJECT="$2"
+            shift
+            ;;
         *)
             args+=("$1")
             ;;
@@ -58,6 +127,20 @@ while [[ $# -gt 0 ]]; do
     shift 1
 done
 set -- "${args[@]}"
+
+ADDITIONAL_ARGS=()
+case "${TARGET}" in
+    local)
+        BUILD_COMMAND=docker_build
+        ;;
+    gcloud)
+        if [[ -z "${PROJECT}" ]]; then
+            PROJECT="$(gcloud config get-value project)"
+        fi
+        BUILD_COMMAND=gcloud_build
+        ADDITIONAL_ARGS=(--gcloud --project "${PROJECT}")
+        ;;
+esac
 
 args=()
 if [[ -z "${DEPTH}" ]]; then
@@ -72,18 +155,18 @@ if [[ -z "${FORCE_BUILD_IMAGE}" ]]; then
         mapfile -t images<<<"$(dependancy_map --image "${args[@]}")"
         for image in "${images[@]}"; do
             if [[ -n "${image}" ]]; then
-                docker image inspect "${image}" >/dev/null 2>&1 || docker pull "$image" || exit 2
+                docker image inspect "${image}" >/dev/null 2>&1 || docker pull "$image"
             fi
         done
         mapfile -t packages<<<"$(dependancy_map "${args[@]}")"
         for package in "${packages[@]}"; do
             if [[ (-n "${package}") && (-f "${package}/conf") ]]; then
-                "${SCRIPT_PATH}" "${package}" build_image --no-recurse || exit $?
+                "${SCRIPT_PATH}" "${package}" build_image --no-recurse "${ADDITIONAL_ARGS[@]}"
             fi
         done
     fi
     if [[ "${SERVICE_TYPE}" == "container" ]]; then
-        docker image inspect "${NAME}" >/dev/null 2>&1 || docker_build || exit $?
+        docker image inspect "${NAME}" >/dev/null 2>&1 || docker_build
     fi
 else
     if [[ (-z "${DEPTH}") || ("${DEPTH}" -gt 1) ]]; then
@@ -91,17 +174,17 @@ else
         mapfile -t images<<<"$(dependancy_map --image "${args[@]}")"
         for image in "${images[@]}"; do
             if [[ -n "${image}" ]]; then
-                docker image inspect "${image}" >/dev/null 2>&1 || docker pull "${image}" || exit 2
+                docker image inspect "${image}" >/dev/null 2>&1 || docker pull "${image}"
             fi
         done
         mapfile -t packages<<<"$(dependancy_map "${args[@]}")"
         for package in "${packages[@]}"; do
             if [[ (-n "${package}") && (-f "${package}/conf") ]]; then
-                "${SCRIPT_PATH}" "${package}" build_image --force --no-recurse || exit $?
+                "${SCRIPT_PATH}" "${package}" build_image --force --no-recurse "${ADDITIONAL_ARGS[@]}"
             fi
         done
     fi
     if [[ "${SERVICE_TYPE}" == "container" ]]; then
-        docker_build || exit $?
+        generic_build
     fi
 fi
