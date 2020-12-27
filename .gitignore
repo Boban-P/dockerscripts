@@ -7,3 +7,5 @@
 **/Assets
 **/Data
 **/Test
+**/.gcloudignore
+**/gcloud.Dockerfile

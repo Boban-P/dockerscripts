@@ -88,7 +88,21 @@ function gcloud_build() {
             args+=("${line/#INSTALL_ARG_/}")
         done
     fi
+    if [[ ! -f "${DIR}/.gcloudignore" ]]; then
+        local ignores=(.gcloudignore)
+        [[ ! -f "${DIR}/.gitignore" ]] || ignores+=("#!include:.gitignore")
+        [[ ! -f "${DIR}/.dockerignore" ]] || ignores+=("#!include:.dockerignore")
+        printf "%s\n" "${ignores[@]}" >"${DIR}/.gcloudignore"
+    fi
     cd ${DIR} && gcloud builds submit --config <(mkgconf "${TAG}" "." "${args[@]}")
+}
+
+function docker_inspect() {
+    docker image inspect "$1"
+}
+
+function gcloud_inspect() {
+    gcloud container images describe "gcr.io/${PROJECT}/${1}"
 }
 
 TARGET="local"
@@ -132,6 +146,7 @@ ADDITIONAL_ARGS=()
 case "${TARGET}" in
     local)
         BUILD_COMMAND=docker_build
+        INSPECT_COMMAND=docker_inspect
         ;;
     gcloud)
         if [[ -z "${PROJECT}" ]]; then
@@ -139,6 +154,7 @@ case "${TARGET}" in
         fi
         BUILD_COMMAND=gcloud_build
         ADDITIONAL_ARGS=(--gcloud --project "${PROJECT}")
+        INSPECT_COMMAND=gcloud_inspect
         ;;
 esac
 
@@ -155,7 +171,7 @@ if [[ -z "${FORCE_BUILD_IMAGE}" ]]; then
         mapfile -t images<<<"$(dependancy_map --image "${args[@]}")"
         for image in "${images[@]}"; do
             if [[ -n "${image}" ]]; then
-                docker image inspect "${image}" >/dev/null 2>&1 || docker pull "$image"
+                docker_inspect "${image}" >/dev/null 2>&1 || docker pull "$image"
             fi
         done
         mapfile -t packages<<<"$(dependancy_map "${args[@]}")"
@@ -166,7 +182,7 @@ if [[ -z "${FORCE_BUILD_IMAGE}" ]]; then
         done
     fi
     if [[ "${SERVICE_TYPE}" == "container" ]]; then
-        docker image inspect "${NAME}" >/dev/null 2>&1 || docker_build
+        ${INSPECT_COMMAND} "${NAME}" >/dev/null 2>&1 || generic_build
     fi
 else
     if [[ (-z "${DEPTH}") || ("${DEPTH}" -gt 1) ]]; then
@@ -174,7 +190,7 @@ else
         mapfile -t images<<<"$(dependancy_map --image "${args[@]}")"
         for image in "${images[@]}"; do
             if [[ -n "${image}" ]]; then
-                docker image inspect "${image}" >/dev/null 2>&1 || docker pull "${image}"
+                docker_inspect "${image}" >/dev/null 2>&1 || docker pull "${image}"
             fi
         done
         mapfile -t packages<<<"$(dependancy_map "${args[@]}")"

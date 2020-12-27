@@ -1,6 +1,6 @@
 bin/*
 Data/*
-Asset/*
+Assets/*
 debug/*
 *.conf
 conf
