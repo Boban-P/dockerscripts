@@ -50,24 +50,25 @@ if [[ (-n "${REPLICATION_SERVER_ID//0/}") ]]; then
                 echo "CREATE DATABASE IF NOT EXISTS ${db}" | mysql
             done
 
-            # Prepare for database backup, add read lock to tables so that
-            # the binary log file do not change
-            function make_backup() {
-                echo "FLUSH TABLES WITH READ LOCK;"
-                # Store server status so clients can use them.
-                echo "SHOW MASTER STATUS\G" | mysql >/dev/shm/master_status.txt
-                lines=$(wc -l /dev/shm/master_status.txt | cut -d\  -f1)
-                (( lines-- ))
-                tail -n "${lines}" /dev/shm/master_status.txt | sed 's/^ *//' >"${BACKUP_SQL_DIR}/master_status";
-                rm /dev/shm/master_status.txt
-            
-                [[ ${#databases[@]} -gt 0 ]] && mysqldump --master-data --databases "${databases[@]}" >"${BACKUP_SQL_DIR}/master.sql"
-                [[ ${#databases[@]} -eq 0 ]] && mysqldump --master-data --all-databases >"${BACKUP_SQL_DIR}/master.sql"
-                echo "UNLOCK TABLES;"
-            }
-            make_backup | mysql
-            sleep 1
         fi
+        # Prepare for database backup, add read lock to tables so that
+        # the binary log file do not change
+        function make_backup() {
+            echo "FLUSH TABLES WITH READ LOCK;"
+            sleep 1
+            # Store server status so clients can use them.
+            echo "SHOW MASTER STATUS\G" | mysql >/dev/shm/master_status.txt
+            lines=$(wc -l /dev/shm/master_status.txt | cut -d\  -f1)
+            (( lines-- ))
+            tail -n "${lines}" /dev/shm/master_status.txt | sed 's/^ *//' >"${BACKUP_SQL_DIR}/master_status";
+            rm /dev/shm/master_status.txt
+
+            [[ ${#databases[@]} -gt 0 ]] && mysqldump --master-data --databases "${databases[@]}" >"${BACKUP_SQL_DIR}/master.sql"
+            [[ ${#databases[@]} -eq 0 ]] && mysqldump --master-data --all-databases >"${BACKUP_SQL_DIR}/master.sql"
+            echo "UNLOCK TABLES;"
+        }
+        make_backup | mysql
+        sleep 1
         /etc/init.d/mysql stop >/dev/null
         # mysql database replication server setup complete
         # to setup clients use the sqldump files from ${BACKUP_SQL_DIR}
