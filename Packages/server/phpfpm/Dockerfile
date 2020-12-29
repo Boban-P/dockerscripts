@@ -24,6 +24,7 @@ RUN apt-get update && \
 	           php${PHP_VERSION}-imagick \
                    msmtp \
                    procps \
+                   ca-certificates \
     && (ln -s /usr/sbin/php-fpm${PHP_VERSION} /usr/sbin/php-fpm || true) \
     && rm -rf /var/lib/apt/lists/*
 
