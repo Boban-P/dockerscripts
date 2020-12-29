@@ -1,0 +1,9 @@
+#!/bin/bash
+
+container_name="android-${NAME//:/-}"
+image="${NAME}"
+
+options=(-ti --privileged -e "PATH=/home/developer/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+options+=(--mount type=bind,source="$(pwd)",destination="/home/developer")
+
+cmd "${container_name//\//}" "${image}" "${options[@]}" -- -ti -- "$@"

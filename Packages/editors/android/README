@@ -1,0 +1,7 @@
+when /dev/kvm is mounted, gid of kvm in guest and host needs to be same. cannot achive with static docker build.
+so to use it build docker image in working system using 
+
+# cloudscript development:android build_image
+
+to launch android studio
+# cloudscript android:latest android

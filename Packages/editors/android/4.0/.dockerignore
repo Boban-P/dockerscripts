@@ -1,0 +1,6 @@
+Data/*
+Asset/*
+bin/*
+*.deb
+*.tar.gz
+*.tgz

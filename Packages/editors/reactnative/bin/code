@@ -1,0 +1,11 @@
+#!/bin/bash
+
+if [[ (! -z "${1}") && ("${1}" != "-"*) && (-d "${1}") ]]; then
+    dir="$(realpath -s "${1}")"
+    shift 1
+else
+    dir="$(pwd)"
+fi
+dir_code="$(md5sum <<<"${dir}" | cut -d ' ' -f 1)"
+name="vscode-${dir_code}"
+cmd "" "${NAME}" -d -- ti -- code -w /home/developer

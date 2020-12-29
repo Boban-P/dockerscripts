@@ -1,0 +1,7 @@
+#!/bin/bash
+
+DATA="$(realpath -s "$(dirname "${DATA}")/../$(basename "${DATA}")")"
+ASSET="$(realpath -s "$(dirname "${ASSET}")/../$(basename "${ASSET}")")"
+bindir="$(dirname "${BASH_SOURCE[0]}")"
+source="$(realpath -s "$(dirname "${bindir}")/../$(basename "${bindir}")/code")"
+"${source}" -t python "$@"
