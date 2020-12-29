@@ -1,0 +1,138 @@
+#!/bin/bash
+
+set -e
+
+function show_help() {
+echo "Usage: $0 options"
+echo "Options:
+--gcloud  [projectname] : deploy to gcloud, used for retrieving image.
+--trusted  ip           : public ip address of balancer
+--mail  ip              : mail server ip address
+--dns   ip              : dns server ip address
+--nfs   ip              : nfs server ip address
+--print                 : do not deploy print generated configuration file.
+--delete                : delete deployment
+--help                  : show this help and exit
+"
+}
+
+function process_file () {
+    NAME="$(sed 's/[^a-zA-Z0-9-]/-/g' <<<"${NAME}")"
+    replace=()
+    # GENERIC VARIABLES
+    mapfile -t vars<<<"$(grep -o '~~{.*}~~' "$1" | sort -r | uniq |cut -d~ -f3 | cut -d{ -f2 | cut -d} -f1)"
+    if [[ (${#vars[@]} -ne 1) || (-n "${vars[0]}") ]]; then
+        for var in "${vars[@]}"; do
+            eval "if [[ -z \$${var} ]]; then >&2 echo undefined variable '$var' in file '$1' && exit 1; fi"
+            value="$(eval "printf '%s' \$${var}")"
+            ESCAPED_value=$(printf '%s\n' "$value" | sed -e 's/[\/&]/\\&/g')
+            replace+=(-e "s/~~{${var}}~~/${ESCAPED_value}/g")
+        done
+    fi
+    # APP VARIABLES
+    mapfile -t vars<<<"$(grep -o '~{app}{.*}~' "$1" | sort -r | uniq |cut -d~ -f2 | cut -d{ -f3 | cut -d} -f1)"
+    if [[ (${#vars[@]} -ne 1) || (-n "${vars[0]}") ]]; then
+        # load configuration files.
+        [[ ! -f "${DIR}/app.conf" ]] && >&2 echo "application configuration file not found" && exit 1
+        # include default values
+        source "$(dirname "$(dirname "$(/usr/bin/which app)")")/app.conf"
+        source "${DIR}/app.conf"
+        APP_IMAGE="${APP_IMAGE:+${IMAGE_PREFIX}${APP_IMAGE}}"
+        for var in "${vars[@]}"; do
+            eval "if [[ -z \$${var} ]]; then >&2 echo undefined variable '{app}$var' in file '$1' && exit 1; fi"
+            value="$(eval "printf '%s' \$${var}")"
+            ESCAPED_value=$(printf '%s\n' "$value" | sed -e 's/[\/&]/\\&/g')
+            replace+=(-e "s/~{app}{${var}}~/${ESCAPED_value}/g")
+        done
+    fi
+    # WEB VARIABLES
+    mapfile -t vars<<<"$(grep -o '~{web}{.*}~' "$1" | sort -r | uniq |cut -d~ -f2 | cut -d{ -f3 | cut -d} -f1)"
+    if [[ (${#vars[@]} -ne 1) || (-n "${vars[0]}") ]]; then
+        # load configuration files.
+        [[ ! -f "${DIR}/web.conf" ]] && >&2 echo "web configuration file not found" && exit 1
+        # include default values
+        source "$(dirname "$(dirname "$(/usr/bin/which web)")")/web.conf"
+        source "${DIR}/web.conf"
+        WEB_IMAGE="${WEB_IMAGE:+${IMAGE_PREFIX}${WEB_IMAGE}}"
+        for var in "${vars[@]}"; do
+            eval "if [[ -z \$${var} ]]; then >&2 echo undefined variable '{web}$var' in file '$1' && exit 1; fi"
+            value="$(eval "printf '%s' \$${var}")"
+            ESCAPED_value=$(printf '%s\n' "$value" | sed -e 's/[\/&]/\\&/g')
+            replace+=(-e "s/~{web}{${var}}~/${ESCAPED_value}/g")
+        done
+    fi
+    if [[ ${#replace[@]} -ne 0 ]]; then
+        sed "${replace[@]}" "$1"
+    else
+        cat "$1"
+    fi
+}
+
+args=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --help)
+            show_help
+            exit
+            ;;
+        --gcloud)
+            if [[ (-z "${2}") || ("$2" != "--"*) ]]; then
+                PROJECT="$(gcloud config get-value project)"
+            else
+                PROJECT="$2"
+                shift
+            fi
+            IMAGE_PREFIX="gcr.io/${PROJECT}/"
+            ;;
+        --trusted)
+            TRUSTED_PROXY="$2"
+            shift
+            ;;
+        --mail)
+            MAIL_FORWARD_HOST="$2"
+            shift
+            ;;
+        --dns)
+            DNS_SERVER="$2"
+            shift
+            ;;
+        --nfs)
+            DATA_SERVER="$2"
+            shift
+            ;;
+        --print)
+            __PRINT__ONLY=1
+            ;;
+        --delete)
+            __DELETE_DEPLOYMENT=1
+            ;;
+        *)
+            >&2 echo "unknown option '$1' in commandline" && exit 1
+            ;;
+    esac
+    shift
+done
+
+[[ -z "${MAIL_FORWARD_HOST}" ]] && >&2 echo "Mail server not configured use --mail" && exit 1
+[[ -z "${DNS_SERVER}" ]] && >&2 echo "dns server not configured use --dns" && exit 1
+[[ -z "${DATA_SERVER}" ]] && >&2 echo "network data server not configured use --nfs" && exit 1
+
+files=(namespace configMap volume deployment)
+source=()
+for file in "${files[@]}"; do
+    if [[ -f "${DIR}/${file}.yaml" ]]; then
+        source+=("$(cat "${DIR}/${file}.yaml")")
+    elif [[ -f "${DIR}/${file}.template.yaml" ]]; then
+        source+=("$(process_file "${DIR}/${file}.template.yaml")")
+    else
+        >&2 echo "the file, $file.yaml or $file.template.yaml not found" && exit 1
+    fi
+done
+
+if [[ -n "${__PRINT__ONLY}" ]]; then
+    printf "%s\n---\n" "${source[@]}"
+    exit 0
+fi
+
+[[ -z "${__DELETE_DEPLOYMENT}" ]] || kubectl delete -f <(printf "%s\n---\n" "${source[@]}")
+kubectl apply -f <(printf "%s\n---\n" "${source[@]}")
