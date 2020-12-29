@@ -1,0 +1,162 @@
+apiVersion: "apps/v1"
+kind: "Deployment"
+metadata:
+  name: "~~{NAME}~~"
+  namespace: "~~{KUBERNET_NAMESPACE}~~"
+  labels:
+    app: "~~{NAME}~~"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: "~~{NAME}~~"
+  template:
+    metadata:
+      labels:
+        app: "~~{NAME}~~"
+    spec:
+      containers:
+      - name: "~{app}{APP_CONTAINER}~"
+        image: "~{app}{APP_IMAGE}~"
+        imagePullPolicy: "Always"
+        volumeMounts:
+          - name: "~~{NAME}~~nfs-source"
+            mountPath: "~{app}{DOCUMENT_ROOT}~"
+            readOnly: true
+          - name: "~~{NAME}~~nfs-data"
+            mountPath: "~{app}{DATA_ROOT}~"
+          - name: "~~{NAME}~~nfs-conf"
+            mountPath: "~{app}{CONF_ROOT}~"
+            readOnly: true
+        env:
+        - name: "LISTEN_PORT"
+          valueFrom:
+            configMapKeyRef:
+              key: "APP_LISTEN_PORT"
+              name: "~~{NAME}~~-config-exep"
+        - name: "DNS_SERVER"
+          valueFrom:
+            configMapKeyRef:
+              key: "DNS_SERVER"
+              name: "~~{NAME}~~-config-exep"
+        - name: "DOCUMENT_ROOT"
+          valueFrom:
+            configMapKeyRef:
+              key: "DOCUMENT_ROOT"
+              name: "~~{NAME}~~-config-exep"
+        - name: "APP_DATA_MOUNTS"
+          valueFrom:
+            configMapKeyRef:
+              key: "APP_DATA_MOUNTS"
+              name: "~~{NAME}~~-config-exep"
+        - name: "APP_CONFIG_MOUNTS"
+          valueFrom:
+            configMapKeyRef:
+              key: "APP_CONFIG_MOUNTS"
+              name: "~~{NAME}~~-config-exep"
+        - name: "DATA_ROOT"
+          valueFrom:
+            configMapKeyRef:
+              key: "APP_DATA_ROOT"
+              name: "~~{NAME}~~-config-exep"
+        - name: "CONFIG_ROOT"
+          valueFrom:
+            configMapKeyRef:
+              key: "APP_CONFIG_ROOT"
+              name: "~~{NAME}~~-config-exep"
+      - name: "~{web}{WEB_CONTAINER}~"
+        image: "~{web}{WEB_IMAGE}~"
+        imagePullPolicy: "Always"
+        volumeMounts:
+          - name: ~~{NAME}~~nfs-source
+            mountPath: "~{web}{DOCUMENT_ROOT}~"
+            readOnly: true
+          - name: ~~{NAME}~~nfs-data
+            mountPath: "~{web}{DATA_ROOT}~"
+            readOnly: true
+        env:
+        - name: "DOCUMENT_ROOT"
+          valueFrom:
+            configMapKeyRef:
+              key: "DOCUMENT_ROOT"
+              name: "~~{NAME}~~-config-exep"
+        - name: "DATA_ROOT"
+          valueFrom:
+            configMapKeyRef:
+              key: "WEB_DATA_ROOT"
+              name: "~~{NAME}~~-config-exep"
+        - name: "SITE_NAME"
+          valueFrom:
+            configMapKeyRef:
+              key: "SITE_NAME"
+              name: "~~{NAME}~~-config-exep"
+        - name: "SITE_ALIAS"
+          valueFrom:
+            configMapKeyRef:
+              key: "SITE_ALIAS"
+              name: "~~{NAME}~~-config-exep"
+        - name: "SITE_LOG_LEVEL"
+          valueFrom:
+            configMapKeyRef:
+              key: "SITE_LOG_LEVEL"
+              name: "~~{NAME}~~-config-exep"
+        - name: "APP_ENVIRONMENT"
+          valueFrom:
+            configMapKeyRef:
+              key: "APP_ENVIRONMENT"
+              name: "~~{NAME}~~-config-exep"
+        - name: "CONFIG_TYPE"
+          valueFrom:
+            configMapKeyRef:
+              key: "CONFIG_TYPE"
+              name: "~~{NAME}~~-config-exep"
+        - name: "TRUSTED_PROXY"
+          valueFrom:
+            configMapKeyRef:
+              key: "TRUSTED_PROXY"
+              name: "~~{NAME}~~-config-exep"
+        - name: "LISTEN_PORT"
+          valueFrom:
+            configMapKeyRef:
+              key: "LISTEN_PORT"
+              name: "~~{NAME}~~-config-exep"
+        - name: "APP_BALANCER_URL"
+          valueFrom:
+            configMapKeyRef:
+              key: "APP_URL"
+              name: "~~{NAME}~~-config-exep"
+        - name: "WEB_DATA_MOUNTS"
+          valueFrom:
+            configMapKeyRef:
+              key: "WEB_DATA_MOUNTS"
+              name: "~~{NAME}~~-config-exep"
+      volumes:
+        - name: "~~{NAME}~~nfs-source"
+          persistentVolumeClaim:
+            claimName: nfs-~~{NAME}~~-source
+        - name: "~~{NAME}~~nfs-data"
+          persistentVolumeClaim:
+            claimName: nfs-~~{NAME}~~-data
+        - name: "~~{NAME}~~nfs-conf"
+          persistentVolumeClaim:
+            claimName: nfs-~~{NAME}~~-config
+---
+apiVersion: "autoscaling/v2beta1"
+kind: "HorizontalPodAutoscaler"
+metadata:
+  name: "~~{NAME}~~-hpa-ui1s"
+  namespace: "~~{KUBERNET_NAMESPACE}~~"
+  labels:
+    app: "~~{NAME}~~"
+spec:
+  scaleTargetRef:
+    kind: "Deployment"
+    name: "~~{NAME}~~"
+    apiVersion: "apps/v1"
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+  - type: "Resource"
+    resource:
+      name: "cpu"
+      targetAverageUtilization: 80
