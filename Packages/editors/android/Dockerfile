@@ -39,7 +39,8 @@ RUN addgroup --gid ${KVM_GID} kvm && \
     && useradd -ms /bin/bash developer \
     && adduser developer root \
     && adduser developer kvm \
-    && adduser developer libvirt
+    && adduser developer libvirt \
+    && adduser developer plugdev
 #    echo "developer ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/90-developer && \
 #    echo "Set disable_coredump false" >>/etc/sudo.conf && \
 

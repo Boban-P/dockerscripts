@@ -8,9 +8,23 @@ PACKAGES=
 
 # ENABLE GUI
 ENABLE_GUI=1
-DOCKER_OPTION_shm_size=--shm-size=3gb
 
 INSTALL_ARG_KVM_GID=$(getent group kvm | cut -d : -f3)
 INSTALL_ARG_LIBVIRT_GID=$(getent group libvirt | cut -d : -f3)
+
+# V4.0
+# ANDROID_STUDIO_FILE=android-studio-ide-193.6626763-linux.tar.gz
+# ANDORID_STUDIO_URL=https://redirector.gvt1.com/edgedl/android/studio/ide-zips/4.0.0.16/${ANDROID_STUDIO_FILE}
+
+# V4.1
 ANDROID_STUDIO_FILE=android-studio-ide-201.6953283-linux.tar.gz
 ANDORID_STUDIO_URL=https://redirector.gvt1.com/edgedl/android/studio/ide-zips/4.1.1.0/${ANDROID_STUDIO_FILE}
+
+
+DOCKER_OPTION_shm_size=--shm-size=3gb
+SITE_PATH_kvm=type=bind,source=/dev/kvm,destination=/dev/kvm
+SITE_PATH_usb=type=bind,source=/dev/bus/usb,target=/dev/bus/usb
+SITE_PATH_libvirt=type=bind,source=/var/run/libvirt/libvirt-sock,target=/var/run/libvirt/libvirt-sock
+SYSTEM_GROUP_kvm=$INSTALL_ARG_KVM_GID
+SYSTEM_GROUP_libvirt=$INSTALL_ARG_LIBVIRT_GID
+SYSTEM_GROUP_plugdev=plugdev

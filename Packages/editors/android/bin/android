@@ -3,7 +3,14 @@
 container_name="android-${NAME//:/-}"
 image="${NAME}"
 
-options=(-ti --privileged -e "PATH=/home/developer/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+options=(-ti --privileged)
 options+=(--mount type=bind,source="$(pwd)",destination="/home/developer")
+
+for d in Android java gradle android; do
+    if [[ ! -d "${DATA}/${d}" ]]; then
+        mkdir -p "${DATA}/${d}"
+    fi
+    export SITE_PATH_java_dir_${d}=type=bind,source="${DATA}/${d}",destination=/home/developer/$(sed 's/^\([a-z]\)/.\1/' <<<"${d}")
+done
 
 cmd "${container_name//\//}" "${image}" "${options[@]}" -- -ti -- "$@"
