@@ -145,5 +145,8 @@ if [[ -n "${__PRINT__ONLY}" ]]; then
     exit 0
 fi
 
-[[ -z "${__DELETE_DEPLOYMENT}" ]] || kubectl delete -f <(printf "%s\n---\n" "${source[@]}")
-kubectl apply -f <(printf "%s\n---\n" "${source[@]}")
+if [[ -z "${__DELETE_DEPLOYMENT}" ]]; then
+    kubectl apply -f <(printf "%s\n---\n" "${source[@]}")
+else
+    kubectl delete -f <(printf "%s\n---\n" "${source[@]}")
+fi
