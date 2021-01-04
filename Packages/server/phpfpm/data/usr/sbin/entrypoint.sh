@@ -1,5 +1,6 @@
 #!/bin/bash
 
+set -e
 
 DIR=/docker-entrypoint.d
 

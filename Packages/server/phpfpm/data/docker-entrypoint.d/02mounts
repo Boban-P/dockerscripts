@@ -3,9 +3,9 @@
 set -e
 
 
-if [[ -n "$("APP_DATA_MOUNTS"}" ]]; then
-    IFS=\; read -a -r files<<"${APP_DATA_MOUNTS}"
-    for file in "${files[@]}; do
+if [[ -n "${APP_DATA_MOUNTS}" ]]; then
+    IFS=\; read -r -a files<<<"${APP_DATA_MOUNTS}"
+    for file in "${files[@]}"; do
         source="${DATA_ROOT%/}/${file%%:*}"
         destination="${DOCUMENT_ROOT%/}/${file#*:}"
         if [[ (-f "${source}") && (-f "${destination}") ]]; then
@@ -15,9 +15,9 @@ if [[ -n "$("APP_DATA_MOUNTS"}" ]]; then
         fi
     done
 fi
-if [[ -n "$("APP_CONFIG_MOUNTS"}" ]]; then
-    IFS=\; read -a -r files<<"${APP_DATA_MOUNTS}"
-    for file in "${files[@]}; do
+if [[ -n "${APP_CONFIG_MOUNTS}" ]]; then
+    IFS=\; read -r -a files<<<"${APP_CONFIG_MOUNTS}"
+    for file in "${files[@]}"; do
         source="${CONFIG_ROOT%/}/${file%%:*}"
         destination="${DOCUMENT_ROOT%/}/${file#*:}"
         if [[ (-f "${source}") && (-f "${destination}") ]]; then
