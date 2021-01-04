@@ -37,14 +37,14 @@ function process_file () {
     NAME="$(sed 's/[^a-zA-Z0-9-]/-/g' <<<"${NAME}")"
     replace=()
     # GENERIC VARIABLES
-    mapfile -t vars<<<"$(grep -o '~~{.*}~~' "$1" | sort -r | uniq |cut -d~ -f3 | cut -d{ -f2 | cut -d} -f1)"
+    mapfile -t vars<<<"$(grep -o '~~{[A-Za-z_][A-Za-z0-9_]*}~~' "$1" |cut -d~ -f3 | cut -d{ -f2 | cut -d} -f1 | sort -r | uniq)"
     if [[ (${#vars[@]} -ne 1) || (-n "${vars[0]}") ]]; then
         sed_command "$1" '~' '~' "${vars[@]}"
     fi
-    mapfile -t commands<<<"$(grep -o '~{.*}{.*}~' "$1" | cut -d~ -f2 | cut -d{ -f2 | cut -d} -f1 | sort | uniq)"
+    mapfile -t commands<<<"$(grep -o '~{[a-z]\+}{[A-Za-z_][A-Za-z0-9_]*}~' "$1" | cut -d~ -f2 | cut -d{ -f2 | cut -d} -f1 | sort | uniq)"
     if [[ (${#commands[@]} -ne 1) || (-n "${commands[0]}") ]]; then
         for command in "${commands[@]}"; do
-            mapfile -t vars<<<"$(grep -o "~{${command}}{.*}~" "$1" | sort -r | uniq |cut -d~ -f2 | cut -d{ -f3 | cut -d} -f1)"
+            mapfile -t vars<<<"$(grep -o "~{${command}}{[A-Za-z_][A-Za-z0-9_]*}~" "$1" |cut -d~ -f2 | cut -d{ -f3 | cut -d} -f1 | sort -r | uniq)"
             if [[ (${#vars[@]} -ne 1) || (-n "${vars[0]}") ]]; then
                 [[ ! -f "${DIR}/${command}.conf" ]] && >&2 echo "command:${command} configuration file not found while processing $1" && exit 1
                 # include default values
