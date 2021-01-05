@@ -57,18 +57,6 @@ set -- "${args[@]}"
 [[ -z "${DB_CONTAINER}" ]] && >&2 echo "container unknown" && exit 1
 [[ -z "$(docker ps -q -f 'name=^'"${DB_CONTAINER}"'$')" ]] && >&2 echo "container not running" && exit 1
 
-# Create database
-[[ -z "${DB_NAME}" ]] && >&2 echo "DATABASE NAME UNKNOWN" && exit 1
-if ! docker exec "${DB_CONTAINER}" /createdb "${DB_NAME}"; then
-    [[ -z "${FORCE}" ]] && >&2 echo "Database already exists to restore from file use --force option" && exit 1
-fi
-
-if [[ (-n "${DB_USER}") && (-n "${DB_PASSWORD}") ]]; then
-    if docker exec "${DB_CONTAINER}" /createUser "${DB_USER}" '%' "${DB_PASSWORD}" 2>/dev/null ; then
-        docker exec "${DB_CONTAINER}" /execute 'GRANT ALL ON `'"${DB_NAME}"'`.*'" TO "'`'"${DB_USER}"'`'
-    fi
-fi
-
 [[ -n "${NO_INSTALL}" ]] && exit 0
 
 if [[ (-n "${LATEST}") && (-n "${S3_BACKUPT_PATH}") ]]; then
@@ -94,6 +82,19 @@ fi
 # this is a crude approch, and currupt data if field values contain the pattern ),(
 # To ovecome the issue, the lines needs to be joined before restoring.
 if [[ -f "${LOCAL_BACKUP_PATH%/}/install.sql" ]]; then
+
+    # Create database
+    [[ -z "${DB_NAME}" ]] && >&2 echo "DATABASE NAME UNKNOWN" && exit 1
+    if ! docker exec "${DB_CONTAINER}" /createdb "${DB_NAME}"; then
+        [[ -z "${FORCE}" ]] && >&2 echo "Database already exists to restore from file use --force option" && exit 1
+    fi
+
+    if [[ (-n "${DB_USER}") && (-n "${DB_PASSWORD}") ]]; then
+        if docker exec "${DB_CONTAINER}" /createUser "${DB_USER}" '%' "${DB_PASSWORD}" 2>/dev/null ; then
+            docker exec "${DB_CONTAINER}" /execute 'GRANT ALL ON `'"${DB_NAME}"'`.*'" TO "'`'"${DB_USER}"'`'
+        fi
+    fi
+
     file="$(mktemp)"
     sed '/),$/{$!{N;s/),\n(/),(/;ty;P;D;:y}}' "${LOCAL_BACKUP_PATH%/}/install.sql" >"${file}"
     docker cp "${file}" "${DB_CONTAINER}:/install.sql"
