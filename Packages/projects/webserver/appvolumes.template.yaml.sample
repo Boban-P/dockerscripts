@@ -1,0 +1,9 @@
+
+          - name: "~~{NAME}~~nfs-source"
+            mountPath: "~{app}{DOCUMENT_ROOT}~"
+            readOnly: true
+          - name: "~~{NAME}~~nfs-data"
+            mountPath: "~{app}{DATA_ROOT}~"
+          - name: "~~{NAME}~~nfs-conf"
+            mountPath: "~{app}{CONF_ROOT}~"
+            readOnly: true

@@ -1,0 +1,11 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: "gce-internal"
+  name: "~~{NAME}~~-ingress"
+  namespace: "~~{KUBERNET_NAMESPACE}~~"
+spec:
+  backend:
+    serviceName: "~~{NAME}~~-service"
+    servicePort: ~{web}{WEB_LISTEN_PORT}~

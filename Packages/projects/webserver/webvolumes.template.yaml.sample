@@ -1,0 +1,7 @@
+
+          - name: ~~{NAME}~~nfs-source
+            mountPath: "~{web}{DOCUMENT_ROOT}~"
+            readOnly: true
+          - name: ~~{NAME}~~nfs-data
+            mountPath: "~{web}{DATA_ROOT}~"
+            readOnly: true

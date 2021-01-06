@@ -1,0 +1,13 @@
+
+        - name: "~~{NAME}~~nfs-source"
+          nfs:
+            server: "~~{DATA_SERVER}~~"
+            path: "/home/~~{KUBERNET_NAMESPACE}~~/source/~~{SERVER_NAME}~~"
+        - name: "~~{NAME}~~nfs-data"
+          nfs:
+            server: "~~{DATA_SERVER}~~"
+            path: "/home/~~{KUBERNET_NAMESPACE}~~/data/~~{SERVER_NAME}~~"
+        - name: "~~{NAME}~~nfs-conf"
+          nfs:
+            server: "~~{DATA_SERVER}~~"
+            path: "/home/~~{KUBERNET_NAMESPACE}~~/conf/~~{SERVER_NAME}~~"

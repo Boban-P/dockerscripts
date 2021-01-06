@@ -1,0 +1,64 @@
+#!/bin/bash
+
+function sed_command() {
+    for var in "${@:4}"; do
+        if [[ ! -v ${var} ]]; then
+            >&2 echo "undefined variable '$var' in file '$1'"
+            exit 1
+        fi
+        value="$(eval "printf '%s' \$${var}")"
+        ESCAPED_value=$(printf '%s\n' "$value" | sed -e 's/[\/&]/\\&/g')
+        replace+=(-e "s/~$2{${var}}$3~/${ESCAPED_value}/g")
+    done
+}
+
+function process_file () {
+    local script content file_content
+    NAME="$(sed 's/[^a-zA-Z0-9-]/-/g' <<<"${NAME}")"
+    replace=()
+    file_content="$(cat "$1")"
+    # SCRIPTED SUBSTITUTION
+    mapfile -t scripts<<<"$(printf "%s\n" "${file_content}" | grep -o '~{}{[a-z]\+}~' |cut -d{ -f3 | cut -d} -f1 | sort -r | uniq)"
+    if [[ (${#scripts[@]} -ne 1) || (-n "${scripts[0]}") ]]; then
+        for script in "${scripts[@]}"; do
+            if [[ -f "${DIR}/${script}.template.yaml" ]]; then
+                content="$(cat "${DIR}/${script}.template.yaml")"
+            elif [[ -f "${base_DIR}/${script}.template.yaml" ]]; then
+                content="$(cat "${base_DIR}/${script}.template.yaml")"
+            else
+                >&2 echo "the script, $script.template.yaml not found while processing $1" && exit 1
+            fi
+            # Strip trailing newlines
+            content="$(printf "%s\n" "${content}" | sed -z -e 's/[\n]*$//g')"
+            ESCAPED_value="$(printf '%s\n' "${content}" | sed -e 's/[\/&]/\\&/g')"
+            file_content="$(printf "%s\n" "${file_content}" | sed -z "s/~{}{$script}~/${ESCAPED_value//$'\n'/\\n}/g")"
+        done
+    fi
+    # GENERIC VARIABLES
+    mapfile -t vars<<<"$(printf "%s\n" "${file_content}" | grep -o '~~{[A-Za-z_][A-Za-z0-9_]*}~~' | cut -d~ -f3 | cut -d{ -f2 | cut -d} -f1 | sort -r | uniq)"
+    if [[ (${#vars[@]} -ne 1) || (-n "${vars[0]}") ]]; then
+        sed_command "$1" '~' '~' "${vars[@]}"
+    fi
+    mapfile -t commands<<<"$(printf "%s\n" "${file_content}" | grep -o '~{[a-z]\+}{[A-Za-z_][A-Za-z0-9_]*}~' | cut -d~ -f2 | cut -d{ -f2 | cut -d} -f1 | sort | uniq)"
+    if [[ (${#commands[@]} -ne 1) || (-n "${commands[0]}") ]]; then
+        for command in "${commands[@]}"; do
+            mapfile -t vars<<<"$(printf "%s\n" "${file_content}" | grep -o "~{${command}}{[A-Za-z_][A-Za-z0-9_]*}~" |cut -d~ -f2 | cut -d{ -f3 | cut -d} -f1 | sort -r | uniq)"
+            if [[ (${#vars[@]} -ne 1) || (-n "${vars[0]}") ]]; then
+                [[ ! -f "${DIR}/${command}.conf" ]] && >&2 echo "command:${command} configuration file not found while processing $1" && exit 1
+                # include default values
+                source "$(dirname "$(dirname "$(/usr/bin/which "${command}")")")/${command}.conf"
+                source "${DIR}/${command}.conf"
+                # for kubernets use registry prefix for image.
+                eval "${command^^}_IMAGE=\"\${${command^^}_IMAGE:+\${IMAGE_PREFIX}\${${command^^}_IMAGE}}\""
+                sed_command "$1" "{${command}}" "" "${vars[@]}"
+            fi
+        done
+    fi
+    if [[ ${#replace[@]} -ne 0 ]]; then
+        printf "%s\n" "${file_content}" | sed "${replace[@]}"
+    else
+        cat "${file_content}"
+    fi
+}
+
+process_file "$@"

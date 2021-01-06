@@ -19,15 +19,7 @@ spec:
       - name: "~{app}{APP_CONTAINER}~"
         image: "~{app}{APP_IMAGE}~"
         imagePullPolicy: "Always"
-        volumeMounts:
-          - name: "~~{NAME}~~nfs-source"
-            mountPath: "~{app}{DOCUMENT_ROOT}~"
-            readOnly: true
-          - name: "~~{NAME}~~nfs-data"
-            mountPath: "~{app}{DATA_ROOT}~"
-          - name: "~~{NAME}~~nfs-conf"
-            mountPath: "~{app}{CONF_ROOT}~"
-            readOnly: true
+        volumeMounts: ~{}{appvolumes}~
         env:
         - name: "LISTEN_PORT"
           valueFrom:
@@ -67,13 +59,7 @@ spec:
       - name: "~{web}{WEB_CONTAINER}~"
         image: "~{web}{WEB_IMAGE}~"
         imagePullPolicy: "Always"
-        volumeMounts:
-          - name: ~~{NAME}~~nfs-source
-            mountPath: "~{web}{DOCUMENT_ROOT}~"
-            readOnly: true
-          - name: ~~{NAME}~~nfs-data
-            mountPath: "~{web}{DATA_ROOT}~"
-            readOnly: true
+        volumeMounts: ~{}{webvolumes}~
         env:
         - name: "DOCUMENT_ROOT"
           valueFrom:
@@ -130,19 +116,7 @@ spec:
             configMapKeyRef:
               key: "WEB_DATA_MOUNTS"
               name: "~~{NAME}~~-config-exep"
-      volumes:
-        - name: "~~{NAME}~~nfs-source"
-          nfs:
-            server: "~~{DATA_SERVER}~~"
-            path: "/home/~~{KUBERNET_NAMESPACE}~~/source/~~{SERVER_NAME}~~"
-        - name: "~~{NAME}~~nfs-data"
-          nfs:
-            server: "~~{DATA_SERVER}~~"
-            path: "/home/~~{KUBERNET_NAMESPACE}~~/data/~~{SERVER_NAME}~~"
-        - name: "~~{NAME}~~nfs-conf"
-          nfs:
-            server: "~~{DATA_SERVER}~~"
-            path: "/home/~~{KUBERNET_NAMESPACE}~~/conf/~~{SERVER_NAME}~~"
+      volumes: ~{}{volumes}~
 ---
 apiVersion: "autoscaling/v2beta1"
 kind: "HorizontalPodAutoscaler"

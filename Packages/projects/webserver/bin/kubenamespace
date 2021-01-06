@@ -1,0 +1,32 @@
+#!/bin/bash
+
+set -e
+
+function show_help() {
+echo "Usage: $0 options
+Create kubernets yaml file for namespace declaration and apply delete or print yaml file.
+"
+echo "Options:
+--print                 : do not deploy print generated configuration file.
+--delete                : delete deployment
+--help                  : show this help and exit
+"
+}
+
+args=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --help)
+            show_help
+            exit
+            ;;
+        *)
+            args+=("$1")
+            ;;
+    esac
+    shift
+done
+
+base_DIR="$(dirname "$(dirname "${BASH_SOURCE[0]}")")"
+
+kubeconfig "${args[@]}" "$base_DIR" "namespace"

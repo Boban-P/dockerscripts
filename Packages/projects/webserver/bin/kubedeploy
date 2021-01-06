@@ -1,0 +1,73 @@
+#!/bin/bash
+
+set -e
+
+function show_help() {
+echo "Usage: $0 options
+Create kubernets yaml file from configuration values and appy delete or print yaml file.
+"
+echo "Options:
+--gcloud  [projectname] : deploy to gcloud, used for retrieving image.
+--trusted  ip           : public ip address of balancer
+--mail  ip              : mail server ip address
+--dns   ip              : dns server ip address
+--nfs   ip              : nfs server ip address
+--file conffile         : yaml or template file will search for conffile.[template.].yaml
+                           specify multiple times to concatenate multiple files.
+                           default to namespace, configMap, volume and deployment
+--print                 : do not deploy print generated configuration file.
+--delete                : delete deployment
+--help                  : show this help and exit
+"
+}
+
+files=()
+args=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --help)
+            show_help
+            exit
+            ;;
+        --trusted)
+            [[ (-z "$2") || "$2" = "--"* ]] && >&2 echo "trusted ip address needed" && exit 1
+            TRUSTED_PROXY="$2"
+            shift
+            ;;
+        --mail)
+            [[ (-z "$2") || "$2" = "--"* ]] && >&2 echo "--mail require server ip or host name" && exit 1
+            MAIL_FORWARD_HOST="$2"
+            shift
+            ;;
+        --dns)
+            [[ (-z "$2") || "$2" = "--"* ]] && >&2 echo "--dns require server ip or host name" && exit 1
+            DNS_SERVER="$2"
+            shift
+            ;;
+        --nfs)
+            [[ (-z "$2") || "$2" = "--"* ]] && >&2 echo "--nfs require network storage server ip or host name" && exit 1
+            DATA_SERVER="$2"
+            shift
+            ;;
+        *)
+            args+=("$1")
+            ;;
+    esac
+    shift
+done
+
+[[ -z "${MAIL_FORWARD_HOST}" ]] && >&2 echo "Mail server not configured use --mail" && exit 1
+[[ -z "${DNS_SERVER}" ]] && >&2 echo "dns server not configured use --dns" && exit 1
+[[ -z "${DATA_SERVER}" ]] && >&2 echo "network data server not configured use --nfs" && exit 1
+export MAIL_FORWARD_HOST;
+export DNS_SERVER;
+export DATA_SERVER;
+if [[ -n "${TRUSTED_PROXY}" ]]; then
+    export TRUSTED_PROXY
+fi
+
+files=(configMap deployment)
+
+search_DIR="$(dirname "$(dirname "${BASH_SOURCE[0]}")")"
+
+kubeconfig "${args[@]}" "${search_DIR}" "${files[@]}"

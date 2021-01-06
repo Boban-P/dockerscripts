@@ -1,0 +1,16 @@
+---
+apiVersion: "v1"
+kind: "Service"
+metadata:
+  name: "~~{NAME}~~-service"
+  namespace: "~~{KUBERNET_NAMESPACE}~~"
+  labels:
+    app: "~~{NAME}~~"
+spec:
+  ports:
+  - protocol: "TCP"
+    port: ~{web}{WEB_LISTEN_PORT}~
+    targetPort: ~{web}{WEB_LISTEN_PORT}~
+  selector:
+    app: "~~{NAME}~~"
+  type: "NodePort"
