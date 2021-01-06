@@ -4,7 +4,7 @@
 address=""
 LOGFILE=${LOGFILE:-/var/log/dnsmasq.log}
 
-if [[ -n ${HOST_MAP} ]]; then
+if [[ -n "${HOST_MAP}" ]]; then
     for entry in ${HOST_MAP}
     do
         ip=${entry%=*}

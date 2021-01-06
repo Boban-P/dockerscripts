@@ -8,6 +8,7 @@ show_help() {
     --container-name  name  : name of the container
     --publiship ip          : published ip address of server
     --port port             : published port number of server
+    --host ip=domain        : add static hosts
 
 Command:
     start                   : Start server
@@ -43,6 +44,10 @@ while [[ $# -ne 0 ]]; do
             ;;
         --port)
             port="$2"
+            shift
+            ;;
+        --host)
+            DNS_HOST_MAP="$2 ${DNS_HOST_MAP}"
             shift
             ;;
         start|stop)
