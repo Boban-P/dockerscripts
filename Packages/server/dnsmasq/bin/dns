@@ -83,7 +83,7 @@ if [[ -z "${exists}" ]]; then
             mkdir -p "${DNS_LOG_PATH}"
         fi
     fi
-    test -n "${DNS_HOST_MAP}" && export DOCKER_OPTION_map='-e=HOST_MAP="'"${DNS_HOST_MAP}"'"'
+    test -n "${DNS_HOST_MAP}" && export "DOCKER_OPTION_map=-e=HOST_MAP=${DNS_HOST_MAP}"
     test -n "${publishIp}" && export DOCKER_OPTION_publisth="--publish=${publishIp}:${port}:53/udp"
 fi
 
