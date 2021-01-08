@@ -68,6 +68,11 @@ while [[ $# -ne 0 ]]; do
 done
 set -- "${args[@]}"
 
+if [[ -z "${DNS_CONTAINER}" ]]; then
+    >&2 echo "DNS container name not sepcified in conf"
+    exit 1
+fi
+
 DNS_IMAGE="${DNS_IMAGE:-"bb526/server:dnsmasq"}"
 DNS_LOG_PATH="${DNS_LOG_PATH:-"${DATA}/dns/log"}"
 
@@ -75,16 +80,16 @@ exists=$(docker ps -q -f 'name=^'"${DNS_CONTAINER}"'$')
 start="$(dockerinfo startup_command "${DNS_IMAGE}")"
 
 if [[ -z "${exists}" ]]; then
-    test -n "${DNS_SERVER}" && export DOCKER_OPTION_dns="-e=SERVER=${DNS_SERVER}"
-    test -n "${DNS_ALLOWED_HOSTS}" && export DOCKER_OPTION_host="-e=HOST_ALLOWED=${DNS_ALLOWED_HOSTS}"
+    if test -n "${DNS_SERVER}"; then export DOCKER_OPTION_dns="-e=SERVER=${DNS_SERVER}"; fi
+    if test -n "${DNS_ALLOWED_HOSTS}"; then export DOCKER_OPTION_host="-e=HOST_ALLOWED=${DNS_ALLOWED_HOSTS}"; fi
     if [[ -n "${DNS_LOG_PATH}" ]]; then
         export SITE_PATH_logfile="type=bind,source=${DNS_LOG_PATH},destination=/var/log"
         if [[ ! -d "${DNS_LOG_PATH}" ]]; then
             mkdir -p "${DNS_LOG_PATH}"
         fi
     fi
-    test -n "${DNS_HOST_MAP}" && export "DOCKER_OPTION_map=-e=HOST_MAP=${DNS_HOST_MAP}"
-    test -n "${publishIp}" && export DOCKER_OPTION_publisth="--publish=${publishIp}:${port}:53/udp"
+    if test -n "${DNS_HOST_MAP}"; then export "DOCKER_OPTION_map=-e=HOST_MAP=${DNS_HOST_MAP}"; fi
+    if test -n "${publishIp}"; then export DOCKER_OPTION_publisth="--publish=${publishIp}:${port}:53/udp"; fi
 fi
 
 case "${1}" in
@@ -94,7 +99,9 @@ case "${1}" in
         fi
         ;;
     "stop")
-        test -n "${exists}" && docker stop "${DNS_CONTAINER}"
+        if test -n "${exists}"; then
+            docker stop "${DNS_CONTAINER}";
+        fi
         ;;
     *)
         cmd "${DNS_CONTAINER}" "${DNS_IMAGE}" -ti -- -ti -- "$@"

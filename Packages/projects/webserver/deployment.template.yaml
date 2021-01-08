@@ -15,6 +15,14 @@ spec:
       labels:
         app: "~~{NAME}~~"
     spec:
+      dnsPolicy: "None"
+      hostAliases:
+      - ip: "~~{DB_SERVER_IP}~~"
+        hostnames:
+        - "~{app}{DB_SERVER_NAME}~"
+      dnsConfig:
+        nameservers:
+          - "~~{DNS_SERVER}~~"
       containers:
       - name: "~{app}{APP_CONTAINER}~"
         image: "~{app}{APP_IMAGE}~"
@@ -25,11 +33,6 @@ spec:
           valueFrom:
             configMapKeyRef:
               key: "APP_LISTEN_PORT"
-              name: "~~{NAME}~~-config-exep"
-        - name: "DNS_SERVER"
-          valueFrom:
-            configMapKeyRef:
-              key: "DNS_SERVER"
               name: "~~{NAME}~~-config-exep"
         - name: "DOCUMENT_ROOT"
           valueFrom:
