@@ -27,6 +27,7 @@ for site in "${other_sites[@]}"; do
     </Proxy>
     ProxyPass        \"/\" \"balancer://${name}/\"
     ProxyPassReverse \"/\" \"balancer://${name}/\"
+    ProxyPreserveHost On
 "
 
 hostfile="<VirtualHost *:${LISTEN_PORT}>${VHOST_CONF}</VirtualHost>
@@ -66,6 +67,7 @@ BALANCER="    RemoteIPHeader X-Client-IP
     </Proxy>
     ProxyPass        \"/\" \"balancer://${generalbalancer}/\"
     ProxyPassReverse \"/\" \"balancer://${generalbalancer}/\"
+    ProxyPreserveHost On
 "
 
 export BALANCER

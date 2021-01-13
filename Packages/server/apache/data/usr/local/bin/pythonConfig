@@ -22,5 +22,6 @@ export BALANCER="
     SetEnvIf  X-FORWARDED-HTTPS \"yes\" HTTPS=on
     ProxyPass        \"/\" \"balancer://appcluster/\"
     ProxyPassReverse \"/\" \"balancer://appcluster/\"
+    ProxyPreserveHost On
 "
 /usr/local/bin/vhosts
