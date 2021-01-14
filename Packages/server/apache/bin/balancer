@@ -31,10 +31,11 @@ commands:
         commandargs     : domain ip:port [...ip:port]
     routedel        : Remove route for domain in route_aliases
         commandargs     : domain ip:port [...ip:port]
-    routeempty      : clear all routes for a domain in route_aliases
-    *               : custom command to run in balancer server, if not already
+    routeclear      : clear all routes for a domain in route_aliases
+    routereset      : clear all routes for a domain in route_aliases and set new
+        commandargs     : domain ip:port [...ip:port]
+    command  shell-command  : custom command to run in balancer server, if not already
                         running, this command will create an instance to run the command
-        commandargs     : see man page of command.
     "
 }
 
@@ -227,10 +228,18 @@ case "$1" in
         [[ -z "${exists}" ]] && >&2 echo "Container not running" && exit 1
         docker exec "${BALANCER_CONTAINER}" siteBalancer.sh "$2" empty
         ;;
+    routereset)
+        [[ -z "${exists}" ]] && >&2 echo "Container not running" && exit 1
+        docker exec "${BALANCER_CONTAINER}" siteBalancer.sh "$2" reset "${@:3}"
+        ;;
     env)
         env
         ;;
+    command)
+        cmd "${BALANCER_CONTAINER}" "${BALANCER_IMAGE}" -ti -e CONFIG_TYPE=balancer -- -ti -- "${@:2}"
+        ;;
     *)
+        >&2 echo "depricated usage: To execute shell-command in container use command shell-command"
         cmd "${BALANCER_CONTAINER}" "${BALANCER_IMAGE}" -ti -e CONFIG_TYPE=balancer -- -ti -- "$@"
         ;;
 esac

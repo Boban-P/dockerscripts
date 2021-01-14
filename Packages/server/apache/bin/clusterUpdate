@@ -1,0 +1,29 @@
+#!/bin/bash
+[[ ! -f "${DIR}/cluster.conf" ]] && >&2 echo "cluster configuration file not found" && exit 1
+# include default values
+source "$(dirname "$(dirname "${BASH_SOURCE[0]}")")/cluster.conf"
+source "${DIR}/cluster.conf"
+PORTS=()
+CURRENT_IPS=""
+
+
+for project in "${PROJECTS[@]}"; do
+    name="$(cloudscript ${project} confValue NAME | sed 's/[^a-zA-Z0-9-]/-/g')-service"
+    namespace="$(cloudscript ${project} confValue KUBERNET_NAMESPACE)"
+    PORTS+=("$(kubectl -n ${namespace} describe svc ${name} | grep 'NodePort:' | awk '{print $3}' | cut -d/ -f1)")
+done
+while true; do
+    mapfile -t IPS<<<"$(kubectl get nodes -o wide | grep 'Ready' | awk '{{print $6}}')"
+    if [[ ( (${#IPS[@]} -ne 1) || (-n "${IPS[0]}") ) && ("${IPS[*]}" != "${CURRENT_IPS}") ]]; then
+        CURRENT_IPS="${IPS[*]}"
+        for count in "${!PROJECTS[@]}"; do
+            targets=("${IPS[@]/%/:${PORTS[${count}]}}")
+            IFS=\; read -r -a aliases<<<"${SITES[${count}]}"
+            for aliase in "${aliases[@]}"; do
+                balancer routereset ${aliase} --no-update "${targets[@]}"
+            done
+        done
+        balancer command apache2ctl graceful
+    fi
+    sleep ${WAIT_TIME:-30}
+done
