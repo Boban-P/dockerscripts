@@ -18,9 +18,9 @@ export BALANCER="     RemoteIPHeader X-Forwarded-For
     # ProxyPassMatch not working with balancer.
     # https://stackoverflow.com/a/41339419
     #ProxyPassMatch ^/(.*\.php)$ balancer://appcluster\${DOCUMENT_ROOT%/}/\$1
+    ${envset}
+    SetEnvIf  X-FORWARDED-HTTPS \"yes\" HTTPS=on
     <FilesMatch \.php$>
-        ${envset}
-        SetEnvIf  X-FORWARDED-HTTPS \"yes\" HTTPS=on
         SetHandler \"proxy:balancer://appcluster\"
     </FilesMatch>
 "
