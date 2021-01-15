@@ -1,0 +1,40 @@
+#!/bin/bash
+
+show_help() {
+    echo "$(tput bold)Usage:$(tput sgr0) $(basename "$(realpath "${BASH_SOURCE[0]}")") [-h | --help]"
+    echo "run tests for ${SERVICE}:${TAG}"
+    echo "$(tput bold)Options:$(tput sgr0)"
+    echo $'\t'"-h|--help"$'\t'"print this help and exit"
+}
+
+args=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)
+            show_help
+            exit
+            ;;
+        *)
+            args+=("$1")
+    esac
+done
+set -- "${args[@]}"
+
+TEST_DIR="${DIR}/test"
+
+if [[ -z "$(which bats)" ]]; then
+    >&2 echo "bats executable not found in path"
+    >&2 echo "cannot run tests"
+    exit 1
+fi
+
+if [[ -d "${TEST_DIR}" ]]; then
+    if [[ $# -eq 0 ]]; then
+        bats "${TEST_DIR}"/*.bats
+    else
+        cd "${TEST_DIR}"
+        bats "$@"
+    fi
+else
+    >&2 echo "Test directory ${TEST_DIR} not exists"
+fi

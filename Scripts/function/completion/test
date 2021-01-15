@@ -1,0 +1,21 @@
+
+_test() {
+  local cur="${COMP_WORDS[COMP_CWORD]}"
+
+  local IFS=$'\n'
+  local dir
+  if [[ "${cur}" != ?(.)?(.)/* ]]; then
+    dir="$(${COMP_WORDS[0]} ${COMP_WORDS[1]} confValue DIR)/test"
+    if [[ -d "${dir}" ]]; then
+      # local IFS=$'\n'
+      COMPREPLY=( $( cd "${dir}"; compgen  -f -X '!*.bats' -- $cur ) )
+    else
+      return
+    fi
+  else
+    # local IFS=$'\n'
+    COMPREPLY=( $( compgen  -f -X '!*.bats' -- $cur ) )
+  fi
+}
+
+_test

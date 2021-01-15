@@ -76,12 +76,11 @@ _cloudscriptCompletion() {
 		return
 	fi
 
-	file="$(PATH="$(%%cloudscript%% "${COMP_WORDS[1]}" script_path 2>/dev/null))${cloud_dir}/function" /usr/bin/which "${COMP_WORDS[2]}")"
+	path="$(%%cloudscript%% "${COMP_WORDS[1]}" script_path 2>/dev/null)${cloud_dir}/function"
+	file="$(export PATH="$path"; /usr/bin/which "${COMP_WORDS[2]}")"
 	if [[ -n "${file}" ]]; then
 		completion_file="$(dirname "${file}")/completion/${COMP_WORDS[2]}"
 		if [[ (-f "${completion_file}") ]]; then
-			COMP_CWORD=$(( COMP_CWORD - 2))
-			COMP_WORDS=("${COMP_WORDS[@]:2}")
 			source "${completion_file}"
 		fi
 	fi
