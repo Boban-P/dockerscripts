@@ -6,6 +6,7 @@ source "${DIR}/cluster.conf"
 PORTS=()
 CURRENT_IPS=""
 
+cd "${DIR}"
 
 for project in "${PROJECTS[@]}"; do
     name="$(cloudscript ${project} confValue NAME | sed 's/[^a-zA-Z0-9-]/-/g')-service"
