@@ -1,7 +1,7 @@
 # MARIADB database server
 
 **Building image locally**
-```
+```sh
 # if installed the script || see: Scripts/completion/install
 cloudscript server/mariadb build_image
 
@@ -15,7 +15,7 @@ cloudscript server/mariadb build_image
 ## Standalone database server (default)
 
 To run standalone server:
-```
+```sh
 docker run bb526/server:mariadb
 
 # to have database stored to local harddisk
@@ -36,7 +36,7 @@ Replication server when created, will generate a database dump, and status file 
 The directory can be modified by setting environment variable `BACKUP_SQL_DIR`.
 This data is required to start a slave machine.
 To capture the data, a local directory can be mounted to `BACKUP_SQL_DIR`
-```
+```sh
 docker run --rm \
     -e REPLICATION_SERVER_ID=1 \
     -e REPLICATION_USER={username} \
@@ -56,7 +56,7 @@ docker run --rm \
     - While restarting slave tmporary files is required, which by default stored in /tmp, this can be modified
     - SLAVE_TMP_DIR env variable set temporary files path.
     - mount local directory to SLAVE_TMP_DIR so that slave can be terminated and started safely.
-```
+```sh
 docker run -d --rm \
     -e REPLICATION_SERVER_ID=2 \
     -e REPLICATION_USER={username} \
@@ -66,7 +66,7 @@ docker run -d --rm \
     bb526/server:mariadb
 ```
 With local directory as database directory
-```
+```sh
 docker run -d --rm \
     -e REPLICATION_SERVER_ID=2 \
     -e REPLICATION_USER={username} \
@@ -78,3 +78,18 @@ docker run -d --rm \
     --mount type=bind,source=/path/to/tmp/dir,destination=/tmp \
     bb526/server:mariadb
 ```
+
+##### Securing mariadb server.
+SSL can be enabled by mounting ca.pem, cert.pem and key.pem files to /certificates
+```sh
+# Either mount files to /certificates directory.
+--mount type=bind,soruce=/host/path/to/ca.pem,destination=/certificates/ca.pem \
+--mount type=bind,soruce=/host/path/to/cert.pem,destination=/certificates/cert.pem \
+--mount type=bind,soruce=/host/path/to/key.pem,destination=/certificates/key.pem
+# or export env variables to certificate files path.
+--mount type=bind,source=/host/path/to/certificates/dir/,destination=/etc/mysql/certificates/ \
+-e SSL_CA_FILE=/etc/mysql/certificates/ca_file_name.pem \
+-e SSL_CERT_FILE=/etc/mysql/certificates/certificate_file_name.pem \
+-e SSL_KEY_FILE=/etc/mysql/certificates/key_file_name.pem
+```
+[Referenc](https://dba.stackexchange.com/a/201771) use `openssl rsa -in server.key -out key_file_name.pem` to convert easyrsa generated keyfile.

@@ -39,7 +39,6 @@ if [[ (-n "${REPLICATION_SERVER_ID//0/}") ]]; then
         fi
 
         /etc/init.d/mysql start >/dev/null
-        
         startup=$(echo "SELECT EXISTS(SELECT 1 FROM mysql.user WHERE user = '${REPLICATION_USER}')" | mysql | tail -1)
         # If replication user do not exits. this is assumed to be first run of replication server
         if [[ "${startup}" == 0 ]]; then
@@ -112,6 +111,25 @@ if [[ (-n "${REPLICATION_SERVER_ID//0/}") ]]; then
     fi
 fi
 
+sed -i -e "s/^#\?\(port[\t ]*=\).*$/\1 ${LISTEN_PORT}/" "${SERVER_CONF_FILE}"
+
+if [[ (-d "/certificates") || ( (-n "${SSL_CERT_FILE}") && (-n "${SSL_CA_FILE}") && (-n "${SSL_KEY_FILE}") ) ]]; then
+    if [[ -z "${SSL_CA_FILE}" ]]; then
+        SSL_CA_FILE=/certificates/ca.pem
+    fi
+    if [[ -z "${SSL_CERT_FILE}" ]]; then
+        SSL_CERT_FILE=/certificates/cert.pem
+    fi
+    if [[ -z "${SSL_KEY_FILE}" ]]; then
+        SSL_KEY_FILE=/certificates/key.pem
+    fi
+    chown mysql:mysql "${SSL_CA_FILE}" "${SSL_CERT_FILE}" "${SSL_KEY_FILE}"
+    sed -e "s@^#\?\(ssl-ca =\).*\$@\1 ${SSL_CA_FILE}@" \
+        -e "s@^#\?\(ssl-cert =\).*\$@\1 ${SSL_CERT_FILE}@" \
+        -e "s@^#\?\(ssl-key =\).*\$@\1 ${SSL_KEY_FILE} \n#require_secure_transport=ON@" \
+        -e 's/^log_error/#log_error/' \
+        -i "${SERVER_CONF_FILE}"
+fi
 touch /var/run/docker_initialized
 
 exec "$@"

@@ -218,6 +218,11 @@ initialize_container() {
     if [[ -n "${publishIp}" ]]; then
         export "DOCKER_OPTION_publish_port=--publish=${publishIp}:${port}:${APP_LISTEN_PORT}"
     fi
+
+    # Add CA-CERTIFICATE if available
+    if [[ -n "${APP_CA_CERTIFICATE_DIR}" -a -d "${APP_CA_CERTIFICATE_DIR}" ]]; then
+        export "SITE_PATH_ca_directory=type=bind,source=${APP_CA_CERTIFICATE_DIR},destination=/ca"
+    fi
 }
 
 case "$1" in

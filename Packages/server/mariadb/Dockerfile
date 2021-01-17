@@ -43,4 +43,4 @@ COPY startup.sh createUser createdb execute /
 
 ENTRYPOINT ["/startup.sh"]
 
-CMD ["mysqld_safe"]
+CMD ["mysqld"]

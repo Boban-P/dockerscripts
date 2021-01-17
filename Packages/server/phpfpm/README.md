@@ -44,3 +44,7 @@ php fpm configuration is modified according to the environment variales.
 docker exec -ti {container-name} host.sh add ${domain} ${ip}
 # eg: - docker exec {container-name} host.sh add dbhost {database-serverip}
 ```
+
+##### Adding CA certificate
+Mount ca certifacte to /ca/ directory. the ca will be added on container startup.
+ca certificates can be created with [easyrsa container](../../utilities/easyrsa)

@@ -154,7 +154,11 @@ if [[ -z "${exists}" ]]; then
             [[ -n "${DB_MASTER_PORT}" ]] && export DOCKER_OPTION_masterport="-e=MASTER_PORT=${DB_MASTER_PORT}"
         fi
     fi
-
+    if [[ (-n "${DB_CA_SSL_FILE}") && (-n "${DB_CRT_SSL_FILE}") && (-n "${DB_KEY_SSL_FILE}") ]]; then
+        export SITE_PATH_db_ca_file="type=bind,source=${DB_CA_SSL_FILE},destination=/certificates/ca.pem"
+        export SITE_PATH_db_crt_file="type=bind,source=${DB_CRT_SSL_FILE},destination=/certificates/cert.pem"
+        export SITE_PATH_db_key_file="type=bind,source=${DB_KEY_SSL_FILE},destination=/certificates/key.pem"
+    fi
 fi
 
 if [[ -z "${DB_PORT}" ]]; then

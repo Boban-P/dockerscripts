@@ -41,3 +41,8 @@ sed -i \
 if [[ -n ${DNS_SERVER} ]]; then
     echo "nameserver ${DNS_SERVER}" >/etc/resolv.conf
 fi
+
+if [[ -d '/ca' ]]; then
+    cp /ca/*.crt /usr/local/share/ca-certificates/
+    update-ca-certificates
+fi
