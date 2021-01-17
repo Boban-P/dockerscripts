@@ -1,0 +1,4 @@
+NAME=easyrsa
+
+DEPENDS=debian:stable
+PACKAGES=
