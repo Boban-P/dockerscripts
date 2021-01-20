@@ -176,7 +176,7 @@ case "$1" in
         fi
         ;;
     stop)
-        test -n "${exists}" && docker exec "${DB_CONTAINER}" /etc/init.d/mysql stop
+        test -n "${exists}" && docker exec "${DB_CONTAINER}" /etc/init.d/mysql stop || echo ""
         echo ""
         ;;
     url)

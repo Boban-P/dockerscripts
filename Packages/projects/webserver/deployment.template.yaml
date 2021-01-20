@@ -59,6 +59,11 @@ spec:
             configMapKeyRef:
               key: "APP_CONFIG_ROOT"
               name: "~~{NAME}~~-config-exep"
+        - name: "MAIL_FORWARD_HOST"
+          valueFrom:
+            configMapKeyRef:
+              key: "MAIL_SERVER"
+              name: "~~{NAME}~~-config-exep"
       - name: "~{web}{WEB_CONTAINER}~"
         image: "~{web}{WEB_IMAGE}~"
         imagePullPolicy: "Always"
