@@ -124,6 +124,32 @@ spec:
             configMapKeyRef:
               key: "WEB_DATA_MOUNTS"
               name: "~~{NAME}~~-config-exep"
+      - name: "logcollector"
+        image: "debian"
+        command:
+          - "/bin/bash"
+          - "-c"
+          - |
+            while [[ ! -f /source/access.log ]]
+            do
+              sleep 1
+            done
+            accessfile="$(date "+%Y%m%d%H%M%S")${RANDOM}.log"
+            while [[ -f "/destination/access/$accessfile" ]]
+            do
+              accessfile="$(date "+%Y%m%d%H%M%S")${RANDOM}.log"
+            done
+            tail -f /source/access.log >/destination/access${accessfile} &
+            while [[ ! -f /source/error.log ]]
+            do
+              sleep 1
+            done
+            tail -f /source/error.log >/destination/error${accessfile}
+        volumeMounts: ~{}{logvolumes}~
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+
       volumes: ~{}{volumes}~
 ---
 apiVersion: "autoscaling/v2beta1"
