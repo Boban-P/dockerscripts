@@ -39,6 +39,14 @@ if [[ -n "${PATH_ALIASES}" ]]; then
     done
 fi
 
+if [[ -n "${LOG_TO_TERMINAL}" ]]; then
+    ErrorLog=/proc/self/fd/2
+    CustomLog=/proc/self/fd/1
+else
+    ErrorLog="\${APACHE_LOG_DIR}/error.log"
+    CustomLog="\${APACHE_LOG_DIR}/access.log"
+fi
+
 VHOST_CONF="    ServerName ${SITE_NAME}
     ${SITE_ALIAS}
     ServerAdmin ${SITE_ADMIN}
@@ -47,8 +55,8 @@ ${DOCUMENT_ROOT}
 $(printf '%s\n' "${dirpaths[@]}")
 ${BALANCER}
     LogLevel ${SITE_LOG_LEVEL}
-    ErrorLog \${APACHE_LOG_DIR}/error.log
-    CustomLog \${APACHE_LOG_DIR}/access.log combined"
+    ErrorLog ${ErrorLog}
+    CustomLog ${CustomLog} combined"
 
 hostfile="
 <VirtualHost *:${LISTEN_PORT}>

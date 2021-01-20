@@ -12,7 +12,10 @@ cloudscript server/apache build_image
 /path/to/Scripts/load /path/to/Packages/server/apache build_image
 ```
 
-**With letsencrypt**
+#### Log to stdout/stderr
+Use `-e LOG_TO_TERMINAL=true` for apache to write log to its stdout & stderr
+
+#### With letsencrypt
 ```
 # example.com needs to be reached from internet.
 # this create a node balancer which route traffic to
@@ -31,7 +34,7 @@ docker run -d --name balancer \
 docker exec balancer childBalancer.sh add {nodeip:port}
 ```
 
-**Node balancer**
+#### Node balancer
 ```
 docker run -d --name balancer \
     -e SITE_NAME=example.com \
@@ -41,9 +44,8 @@ docker run -d --name balancer \
 To add nodes
 `docker exec balancer childBalancer.sh add {ip}:{port}`
 
-#
 
-**Node balancer with site spacific routing**
+#### Node balancer with site spacific routing**
 ```
 # by this configuration, sites will be issued single cerificate
 # if ssl is enbaled with an acme provider.
@@ -57,7 +59,7 @@ docker run -d --name balancer \
 To add nodes
 `docker exec balancer siteBalancer.sh abc.com add {ip}:{port}`
 
-**static file server infront of php-fpm.**
+#### static file server infront of php-fpm.**
 ```
 docker run -d --name staticserver --rm \
     -e CONFIG_TYPE=phpapp \
@@ -67,7 +69,7 @@ docker run -d --name staticserver --rm \
 ```
 To route to php fpm server `docker exec staticserver appBalancer.sh add {php-fpm-server-ip}:{port}`
 
-**static file server in front of django/python app**
+#### static file server in front of django/python app**
 ```
 docker run --name djangostatic --rm \
     -e CONFIG_TYPE=pythonapp \
@@ -78,7 +80,7 @@ docker run --name djangostatic --rm \
 docker exec -ti djangostatic appBalancer.sh add {django-server-ip}:{port}
 ```
 
-**custom vhosts file.**
+#### custom vhosts file.**
 ```
 docker run --name apacheserver --rm \
     --mount type=bind,source=/path/to/vhosts,destination=/etc/apache2/sites-enabled/vhost.conf \
