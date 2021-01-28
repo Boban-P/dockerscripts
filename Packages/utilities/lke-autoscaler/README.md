@@ -4,12 +4,11 @@
 ## Linode Kubernetes Engine Autoscaler
 This is originally cloned from  [meezaan/linode-k8s-autoscaler](https://github.com/meezaan/linode-k8s-autoscaler) and modified.<br>
 This is a simple autoscaling utility for horizontally scaling Linodes in an LKE
-Cluster Pool based on memory and/or cpu usage. This effectively means that you can use Kubernetes' horizontal pod autoscaling to scale up your pods and this utility to scale up your Linodes - so you can set this up and let your cluster scale up or down as needed.
+Cluster Pool based on memory and/or cpu usage. use Kubernetes' horizontal pod autoscaling to scale up pods and this utility to scale up Linodes - this utility let linode cluster scale up or down as needed.
 
-Each instance of this utility will autoscale based on either memory or cpu. To use both, you can deploy 2 instances of this utility (usually 1 is enough).
+This utility will autoscale based on memory and/or cpu. When using both maximum number of nodes from memory or cpu autoscale is used.
 
-It's fully dockerised (but written in PHP) and has a low resource footprint, so you can 
-deploy it locally or on the cluster itself.
+It's fully dockerised (but written in PHP) and has a low resource footprint, so deploy it locally or on the cluster itself.
 
 # Contents
 1. [Requirements](#requirements)
@@ -23,7 +22,7 @@ deploy it locally or on the cluster itself.
 * Linode Kuberenetes Cluster (LKE) with Metrics Server. To deploy metrics server refer [how-can-i-deploy-the-kubernetes-metrics-server-on-lke](https://www.linode.com/community/questions/19756/how-can-i-deploy-the-kubernetes-metrics-server-on-lke)
 * A kubectl config file (usually stored @ ~/.kube/config)
 * A Linode Personal Access Token with access to LKE
-* Docker (recommended) or PHP 7.4 (you'll need to setup env vars on your machine / server before using PHP without Docker)
+* Docker (optional)
 
 ## Published Docker Image
 The image for this utility is published @ Docker Hub as bb526/lke-autoscaler (https://hub.docker.com/r/bb526/lke-autoscaler).
@@ -83,8 +82,8 @@ docker run -v ~/.kube/config:/root/.kube/config \
 
 ## Deploying on Kubernetes for Production Use
 
-For production, you can build a private Docker image and push a kubectl config file 
-with a service account's credentials into the image. So, your Dockerfile may look something like:
+Build a private Docker image and push a kubectl config file 
+with a service account's credentials into the image. So, the Dockerfile may look something like:
 ```
 FROM bb526/lke-autoscaler
 
@@ -156,7 +155,7 @@ spec:
 
 ```
 
-The above manifest uses a secret for your 
+The above manifest uses a secret for
 Linode Personal Access Token and docker registry credentials.
 
 You will need to create these.
