@@ -1,0 +1,21 @@
+{
+    "require": {
+        "travisghansen/kubernetes-client-php": "^0.2.0",
+        "monolog/monolog": "^2.1",
+        "guzzlehttp/guzzle": "^7.0"
+    },
+    "require-dev": {
+        "squizlabs/php_codesniffer": "^3.0",
+        "phpunit/phpunit": "^8"
+    },
+    "autoload": {
+        "psr-4": {
+            "AutoScaler\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "AutoScaler\\tests\\": "tests/"
+        }
+    }
+}

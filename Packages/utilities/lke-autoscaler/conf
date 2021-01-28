@@ -1,0 +1,4 @@
+NAME=lke-autoscaler
+
+DEPENDS=php:7.4
+PACKAGES=

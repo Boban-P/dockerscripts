@@ -1,0 +1,62 @@
+#!/bin/bash
+
+set -e
+
+show_help() {
+    echo "Usage: $0 start|stop|command"
+}
+
+
+[[ ! -f "${DIR}/lkeautoscaler.conf" ]] && >&2 echo "linode autoscaler configuration file not found" && exit 1
+# include default values
+source "$(dirname "$(dirname "${BASH_SOURCE[0]}")")/lkeautoscaler.conf"
+source "${DIR}/lkeautoscaler.conf"
+
+[[ -n "${CONTAINER}" ]]
+[[ -n "${IMAGE}" ]]
+
+
+start="$(dockerinfo startup_command "${IMAGE}")"
+exists=$(docker ps -f 'name=^'"${CONTAINER}"'$' -q)
+
+setup_env() {
+    # ENVIRONMENT VARIABLES.
+    export DOCKER_OPTION_LINODE_PERSONAL_ACCCESS_TOKEN="-e=LINODE_PERSONAL_ACCCESS_TOKEN=${LINODE_ACCESS_TOKEN}"
+    export DOCKER_OPTION_LINODE_LKE_CLUSTER_ID="-e=LINODE_LKE_CLUSTER_ID=${LINODE_CLUSTER_ID}"
+    export DOCKER_OPTION_LINODE_LKE_CLUSTER_POOL_ID="-e=LINODE_LKE_CLUSTER_POOL_ID=${LINODE_CLUSTER_POOL_ID}"
+    export DOCKER_OPTION_LINODE_LKE_CLUSTER_POOL_MINIMUM_NODES="-e=LINODE_LKE_CLUSTER_POOL_MINIMUM_NODES=${MINIMUM_NODES}"
+    export DOCKER_OPTION_LINODE_LKE_CLUSTER_POOL_MAXIMUM_NODES="-e=LINODE_LKE_CLUSTER_POOL_MAXIMUM_NODES=${MAXIMUM_NODES}"
+    export DOCKER_OPTION_AUTOSCALE_MEMORY_UP_PERCENTAGE="-e=AUTOSCALE_MEMORY_UP_PERCENTAGE=${MEMORY_UP_PERCENTAGE}"
+    export DOCKER_OPTION_AUTOSCALE_MEMORY_DOWN_PERCENTAGE="-e=AUTOSCALE_MEMORY_DOWN_PERCENTAGE=${MEMORY_DOWN_PERCENTAGE}"
+    export DOCKER_OPTION_AUTOSCALE_CPU_UP_PERCENTAGE="-e=AUTOSCALE_CPU_UP_PERCENTAGE=${CPU_UP_PERCENTAGE}"
+    export DOCKER_OPTION_AUTOSCALE_CPU_DOWN_PERCENTAGE="-e=AUTOSCALE_CPU_DOWN_PERCENTAGE=${CPU_DOWN_PERCENTAGE}"
+    export DOCKER_OPTION_AUTOSCALE_QUERY_INTERVAL="-e=AUTOSCALE_QUERY_INTERVAL=${INTERVAL}"
+    export DOCKER_OPTION_AUTOSCALE_THRESHOLD_COUNT="-e=AUTOSCALE_THRESHOLD_COUNT=${THRESHOLD}"
+    export DOCKER_OPTION_AUTOSCALE_WAIT_TIME_AFTER_SCALING="-e=AUTOSCALE_WAIT_TIME_AFTER_SCALING=${WAIT_TIME}"
+    export SITE_PATH_log_dir="type=bind,source=${LOG_DIR},destination=/var/log"
+    export SITE_PATH_config_file="type=bind,source=${CONFIG_FILE},destination=/root/.kube/config"
+
+    if [[ ! -d "${LOG_DIR}" ]]; then
+        mkdir -p "${LOG_DIR}"
+    fi
+}
+
+case "$1" in
+    start)
+        if [[ -z "${exists}" ]]; then
+            setup_env
+            cmd "${CONTAINER}" "${IMAGE}" -ti --  -- "${start}"
+        fi
+        ;;
+    stop)
+        [[ -n "${exists}" ]] && docker stop "${CONTAINER}"
+        ;;
+    command)
+        if [[ -z "${exists}" ]]; then
+            setup_env
+            cmd "${CONTAINER}" "${IMAGE}" -ti -- -- "${@:2}"
+        else
+            docker exec -ti "${CONTAINER}" "${@:2}"
+        fi
+        ;;
+esac
