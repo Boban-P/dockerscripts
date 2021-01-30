@@ -38,6 +38,7 @@ function docker_build() {
         done
     fi
     DOCKER_BUILDKIT=1 docker build "${args[@]}" -t "${NAME}" "${DIR}"
+    [[ -z "${VERSION}" ]] || docker tag "${NAME}" "${NAME}-${VERSION}"
 }
 
 function mkgconf() {
