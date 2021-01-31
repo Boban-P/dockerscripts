@@ -22,6 +22,8 @@ echo "Options:
 "
 }
 
+[[ ! -f "${DIR}/save" ]] || source "${DIR}/save"
+
 files=()
 args=()
 while [[ $# -gt 0 ]]; do
@@ -62,7 +64,7 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-[[ -z "${MAIL_FORWARD_HOST}" ]] && >&2 echo "Mail server not configured use --mail" && exit 1
+[[ -z "${MAIL_FORWARD_HOST}" ]] && >&2 echo "Mail server not configured use --mail" && exit 1 
 [[ -z "${DNS_SERVER}" ]] && >&2 echo "dns server not configured use --dns" && exit 1
 [[ -z "${DATA_SERVER}" ]] && >&2 echo "network data server not configured use --nfs" && exit 1
 [[ -z "${DB_SERVER_IP}" ]] && >&2 echo "database server not configured use --db" && exit 1
@@ -70,8 +72,14 @@ export MAIL_FORWARD_HOST;
 export DNS_SERVER;
 export DATA_SERVER;
 export DB_SERVER_IP;
+echo "MAIL_FORWARD_HOST=${MAIL_FORWARD_HOST}
+DNS_SERVER=${DNS_SERVER}
+DATA_SERVER=${DATA_SERVER}
+DB_SERVER_IP=${DB_SERVER_IP}
+" >"${DIR}/save"
 if [[ -n "${TRUSTED_PROXY}" ]]; then
     export TRUSTED_PROXY
+    echo "TRUSTED_PROXY=${TRUSTED_PROXY}" >>"${DIR}/save"
 fi
 
 files=(configMap deployment)

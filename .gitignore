@@ -9,3 +9,6 @@
 **/Test
 **/.gcloudignore
 **/gcloud.Dockerfile
+**/.venv
+/utilities
+save
