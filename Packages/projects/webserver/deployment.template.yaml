@@ -27,6 +27,13 @@ spec:
       - name: "~{app}{APP_CONTAINER}~"
         image: "~{app}{APP_IMAGE}~"
         imagePullPolicy: "Always"
+        livelinessProbe:
+          exec:
+            command:
+              - php-fpm-healthcheck
+              - --accepted-conn=5000
+          initialDelaySeconds: 5
+          periodSeconds: 10
         volumeMounts: ~{}{appvolumes}~
         env:
         - name: "LISTEN_PORT"

@@ -17,7 +17,7 @@ Mount filesystem to required path, usually DOCUMENT_ROOT of apache server.
 ```
 docker run --rm \
     --mount type=bind,source=/path/to/php/source,destination=/path/to/dest/dir \
-    bb526/server:phpfpm
+    bb526/phpfpm:7.3
 ```
 environment variables
 ```

@@ -9,6 +9,7 @@ mkdir /run/php
 sed -i -e "s@^listen = .*\$@listen = ${LISTEN_PORT}@" \
     -e 's/user = www-data/user = 1000/' \
     -e 's/group = www-data/group = 1000/' \
+    -e 's@^[;]\{0,1\}pm.status_path = .*$@pm.status_path = /fpmstat@' \
     /etc/php/"${PHP_VERSION}"/fpm/pool.d/www.conf
 
 # change configurable server values.
@@ -23,7 +24,7 @@ do
         -e 's/post_max_size = .*$/post_max_size = '"${MAX_POST_SIZE}"'/' \
         -e 's/max_input_vars = .*$/max_input_vars = '"${MAX_INPUT_VARS}"'/' \
         -e 's@^;sendmail_path =.*$@sendmail_path = "/usr/bin/msmtp -t"@' \
-        -e 's@^[;]{0,1}pm.status_path = .*$@pm.status_path = /fpmstat@' \
+        -e 's@^[;]\{0,1\}pm.status_path = .*$@pm.status_path = /fpmstat@' \
         "${file}"
 done
 

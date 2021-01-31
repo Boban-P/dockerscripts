@@ -1,6 +1,6 @@
 FROM debian:stable
 
-MAINTAINER Boban Pulinchery <boban@ecodiver.in>
+LABEL maintainer='Boban Pulinchery <boban@ecodiver.in>'
 
 
 ARG PHP_VERSION=7.3
@@ -22,9 +22,10 @@ RUN apt-get update && \
 	           php${PHP_VERSION}-zip \
 	           php${PHP_VERSION}-intl \
 	           php${PHP_VERSION}-imagick \
-                   msmtp \
-                   procps \
-                   ca-certificates \
+			   libfcgi-bin \
+               msmtp \
+               procps \
+               ca-certificates \
     && (ln -s /usr/sbin/php-fpm${PHP_VERSION} /usr/sbin/php-fpm || true) \
     && rm -rf /var/lib/apt/lists/*
 

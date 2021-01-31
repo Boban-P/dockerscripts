@@ -175,7 +175,7 @@ initialize_container() {
     # create document root if it do not exits.
 
     if [[ (-n ${APP_PRIVATE_ROOT}) ]]; then
-        [[ -d "${APP_PRIVATE_ROOT}" ]]
+        [[ ! -d "${APP_PRIVATE_ROOT}" ]] && >&2 echo "Application Un initialized" && exit 1
 
         dirs=(${APP_DOCUMENT_ASSETS} ${APP_PRIVATE_ASSETS})
         for dir in "${dirs[@]}"; do
@@ -220,7 +220,7 @@ initialize_container() {
     fi
 
     # Add CA-CERTIFICATE if available
-    if [[ -n "${APP_CA_CERTIFICATE_DIR}" -a -d "${APP_CA_CERTIFICATE_DIR}" ]]; then
+    if [[ (-n "${APP_CA_CERTIFICATE_DIR}") && (-d "${APP_CA_CERTIFICATE_DIR}") ]]; then
         export "SITE_PATH_ca_directory=type=bind,source=${APP_CA_CERTIFICATE_DIR},destination=/ca"
     fi
 }
