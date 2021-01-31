@@ -1,7 +1,8 @@
-NAME=server:mariadb
+NAME=mariadb:10.3
 
 DEPENDS=debian:stable
 PACKAGES=
 
+VERSION=1
 
 INSTALL_ARG_SERVER_VERSION=10.3

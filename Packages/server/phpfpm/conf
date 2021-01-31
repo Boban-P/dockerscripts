@@ -2,3 +2,5 @@ NAME=phpfpm:7.3
 
 DEPENDS=debian:stable
 PACKAGES=../application
+
+VERSION=1

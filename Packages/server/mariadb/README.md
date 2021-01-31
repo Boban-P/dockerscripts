@@ -16,13 +16,13 @@ cloudscript server/mariadb build_image
 
 To run standalone server:
 ```sh
-docker run bb526/server:mariadb
+docker run bb526/mariadb:10.3
 
 # to have database stored to local harddisk
 # to run server.
 docker run -d --rm \
     --mount type=bind,source=/path/to/mysql/db/directory,destination=/var/lib/mysql \
-    bb526/server:mariadb
+    bb526/mariadb:10.3
 ```
 
 ## Replication server setup
@@ -43,7 +43,7 @@ docker run --rm \
     -e REPLICATION_PASSWORD={password} \
     --mount type=bind,source=/path/to/master/backupdir,destination=/home/sql \
     -p 3306:3306 \
-    bb526/server:mariadb
+    bb526/mariadb:10.3
 ```
 
 **Replication slave**
@@ -63,7 +63,7 @@ docker run -d --rm \
     -e REPLICATION_PASSWORD={password} \
     -e MASTER_SERVER={master server ip address} \
     --mount type=bind,source=/path/to/master/backupdir,destination=/home/sql \
-    bb526/server:mariadb
+    bb526/mariadb:10.3
 ```
 With local directory as database directory
 ```sh
@@ -76,7 +76,7 @@ docker run -d --rm \
     --mount type=bind,source=/path/to/mysql/db/directory,destination=/var/lib/mysql \
     -e SLAVE_TMP_DIR=/tmp \
     --mount type=bind,source=/path/to/tmp/dir,destination=/tmp \
-    bb526/server:mariadb
+    bb526/mariadb:10.3
 ```
 
 ##### Securing mariadb server.

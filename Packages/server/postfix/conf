@@ -1,4 +1,6 @@
-NAME=server:postfix
+NAME=postfix:3.4.14
 
 DEPENDS=debian:stable
 PACKAGES=
+
+VERSION=1

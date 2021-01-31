@@ -1,4 +1,6 @@
-NAME=server:apache
+NAME=apache:2.4
 
 DEPENDS=debian:stable
 PACKAGES=
+
+VERSION=1

@@ -1,4 +1,6 @@
-NAME=server:dnsmasq
+NAME=dnsmasq:2.80
 
 DEPENDS=debian:stable
 PACKAGES=
+
+VERSION=1

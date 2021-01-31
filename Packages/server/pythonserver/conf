@@ -1,4 +1,6 @@
-NAME=server:python
+NAME=python:server
 
 DEPENDS=debian:stable
 PACKAGES=../application
+
+VERSION=1

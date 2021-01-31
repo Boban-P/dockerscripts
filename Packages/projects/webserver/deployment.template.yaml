@@ -26,8 +26,7 @@ spec:
       containers:
       - name: "~{app}{APP_CONTAINER}~"
         image: "~{app}{APP_IMAGE}~"
-        imagePullPolicy: "Always"
-        livelinessProbe:
+        livenessProbe:
           exec:
             command:
               - php-fpm-healthcheck
@@ -73,7 +72,6 @@ spec:
               name: "~~{NAME}~~-config-exep"
       - name: "~{web}{WEB_CONTAINER}~"
         image: "~{web}{WEB_IMAGE}~"
-        imagePullPolicy: "Always"
         volumeMounts: ~{}{webvolumes}~
         env:
         - name: "DOCUMENT_ROOT"
@@ -133,6 +131,7 @@ spec:
               name: "~~{NAME}~~-config-exep"
       - name: "logcollector"
         image: "debian"
+        imagePullPolicy: "IfNotPresent"
         command:
           - "/bin/bash"
           - "-c"

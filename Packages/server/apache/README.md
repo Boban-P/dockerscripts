@@ -29,7 +29,7 @@ docker run -d --name balancer \
     -e SSL_ON=1 \
     -e ACME_PROVIDER=letsencrypt-staging \
     -p 80:80 -p 443:443 \
-    bb526/server:apache
+    bb526/apache:2.4
 # to add node
 docker exec balancer childBalancer.sh add {nodeip:port}
 ```
@@ -39,7 +39,7 @@ docker exec balancer childBalancer.sh add {nodeip:port}
 docker run -d --name balancer \
     -e SITE_NAME=example.com \
     -e CONFIG_TYPE=balancer \
-    bb526/server:apache
+    bb526/apache:2.4
 ```
 To add nodes
 `docker exec balancer childBalancer.sh add {ip}:{port}`
@@ -54,7 +54,7 @@ docker run -d --name balancer \
     -e SITE_ALIAS="abc.com other.com www.example.com" \
     -e ALIAS_ROUTES="abc.com other.com" \
     -e CONFIG_TYPE=balancer \
-    bb526/server:apache
+    bb526/apache:2.4
 ```
 To add nodes
 `docker exec balancer siteBalancer.sh abc.com add {ip}:{port}`
@@ -65,7 +65,7 @@ docker run -d --name staticserver --rm \
     -e CONFIG_TYPE=phpapp \
     --mount type=bind,source=/path/to/host/documentroot,destination=/home/www \
     -e DOCUMENT_ROOT=/home/www \
-    bb526/server:apache
+    bb526/apache:2.4
 ```
 To route to php fpm server `docker exec staticserver appBalancer.sh add {php-fpm-server-ip}:{port}`
 
@@ -75,7 +75,7 @@ docker run --name djangostatic --rm \
     -e CONFIG_TYPE=pythonapp \
     --mount type=bind,source=/path/to/static/file,destination=/home/static \
     -e PATH_ALIASES=/static=/home/static \
-    bb526/server:apache
+    bb526/apache:2.4
 
 docker exec -ti djangostatic appBalancer.sh add {django-server-ip}:{port}
 ```
@@ -84,7 +84,7 @@ docker exec -ti djangostatic appBalancer.sh add {django-server-ip}:{port}
 ```
 docker run --name apacheserver --rm \
     --mount type=bind,source=/path/to/vhosts,destination=/etc/apache2/sites-enabled/vhost.conf \
-    bb526/server:apache
+    bb526/apache:2.4
 
 ```
 To enable a module add `-e ENABLE_MODE_{module}=1` to docker run arguments. eg:- `-e ENABLE_MODE_rewrite=1`

@@ -17,7 +17,7 @@ Mount filesystem to any path in container and expose that directory with -w opti
 ```
 docker run --rm --mount type=bind,source=/path/to/python/source,destination=/path/to/working/dir \
     -w /path/to/working/dir
-    bb526/server:pythonserver
+    bb526/python:server
 ```
 if there is a requirements.txt file in working dir, `pip install -r requirements.txt` will be executed.
 to avoid downloading depency each time the container started,
@@ -28,7 +28,7 @@ sudo chown root:root /path/to/cache/dir
 docker run --rm --mount type=bind,source=/path/to/python/source,destination=/path/to/working/dir \
     -w /path/to/working/dir \
     --mount type=bind,source=/path/to/cache/dir,destination=/root/.cache \
-    bb526/server:pythonserver
+    bb526/python:server
 ```
 
 By default daphne server is run on port 80
