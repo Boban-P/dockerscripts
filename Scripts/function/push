@@ -3,8 +3,8 @@
 set -e
 
 if [[ -n "${VERSION}" ]]; then
-    docker_inspect "${NAME}-${VERSION}" >/dev/null 2>&1 || build_image
-    docker push "${NAME}-${VERSION}"
+    docker_inspect "${PREFIX}${NAME}-${VERSION}" >/dev/null 2>&1 || build_image
+    docker push "${PREFIX}${NAME}-${VERSION}"
 fi
 
-docker push ${NAME}
+docker push "${PREFIX}${NAME}"

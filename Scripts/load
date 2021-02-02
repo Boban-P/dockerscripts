@@ -85,14 +85,12 @@ if [[ -z "${NAME}" ]]; then
 fi
 
 if [[ -n "${image_prefix}" ]]; then
-    docker_user="${image_prefix}"
+    export PREFIX="${image_prefix%/}/"
 fi
 
 if [[ -f "${DIR}/Dockerfile" ]]; then
     export SERVICE_TYPE="container"
 fi
-
-NAME=${docker_user%/}/${NAME}
 
 # If an argument is set and it is the executable, remove argument and set executable.
 if [[ -n "${1}" ]]; then

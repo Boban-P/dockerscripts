@@ -22,7 +22,7 @@ for opt in "$@"; do
     esac
 done
 
-docker image inspect "${NAME}" >/dev/null 2>&1
+docker image inspect "${PREFIX}${NAME}" >/dev/null 2>&1
 
 ret=$?
 
