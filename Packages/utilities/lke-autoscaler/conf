@@ -1,4 +1,6 @@
-NAME=lke-autoscaler
+NAME=linode:lke-autoscaler
 
 DEPENDS=php:7.4
 PACKAGES=
+
+VERSION=1
