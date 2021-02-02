@@ -30,7 +30,6 @@ spec:
           exec:
             command:
               - php-fpm-healthcheck
-              - --accepted-conn=5000
           initialDelaySeconds: 5
           periodSeconds: 10
         volumeMounts: ~{}{appvolumes}~
